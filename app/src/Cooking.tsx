@@ -222,7 +222,7 @@ export function Cooking({
       <div className="ask-dock">
         <AskField
           text={question}
-          hint="Ask, or say what you're missing"
+          hint="Ask, swap or set a timer"
           onTextChange={setQuestion}
           onSend={send}
           busy={busy}

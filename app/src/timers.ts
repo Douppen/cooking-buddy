@@ -62,4 +62,4 @@ export function timerDoneSpeech(timer: Timer): string {
 }
 
 /** How long the "timer is done" notice stays: shorter than an answer. */
-export const TIMER_NOTICE_MS = 6_000;
+export const TIMER_NOTICE_MS = 3_000;
