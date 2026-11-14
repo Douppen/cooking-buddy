@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { convertUnitSystem, scaleIngredients, toCelsiusInText } from "./scaling.js";
+import { cleanAmount, cleanAmountsInText, convertUnitSystem, scaleIngredients, toCelsiusInText } from "./scaling.js";
 import { RecipeSchema, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
@@ -117,6 +117,12 @@ test("temperatures in text become Celsius", () => {
   for (const text of ["Bake at 200°C (180°C fan).", "Add 2 eggs and 3 Fuji apples.", "Grade F 2 flour"]) {
     assert.equal(toCelsiusInText(text), text);
   }
+});
+
+test("amounts are rounded the way recipes write them", () => {
+  const cases = { 0.3: 0.5, 1.2: 1, 2.4: 2.5, 7.3: 7, 19: 20, 56.7: 55, 113: 110, 125: 125, 175: 175, 227: 230, 480: 480, 1130: 1150, 1250: 1250 };
+  for (const [raw, clean] of Object.entries(cases)) assert.equal(cleanAmount(Number(raw)), clean, `${raw}`);
+  assert.equal(cleanAmountsInText("Add 56 g butter and 113ml milk, then 2 eggs."), "Add 55 g butter and 110ml milk, then 2 eggs.");
 });
 
 test("AI recipes come out in Celsius", () => {

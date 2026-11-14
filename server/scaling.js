@@ -65,6 +65,29 @@ function decimal(n, digits) {
   return String(Number(n.toFixed(digits)));
 }
 
+// --- Clean amounts ------------------------------------------------------------------------
+// Web recipes in cups and ounces come out of an exact conversion as "113 g" or "19 g".
+// toRecipe() stores every AI recipe's g/ml amounts as a recipe writer would write them.
+
+/**
+ * A g or ml amount rounded the way recipes write them: under 5 to the half, 5–10 to the
+ * whole, 10–100 to 5, 100–1000 to 10, above that to 50. Multiples of 25 (125, 175, 1250) are
+ * already clean and stay. 113 → 110, 56 → 55, 19 → 20, 7.3 → 7, 1.2 → 1, 480 → 480.
+ */
+export function cleanAmount(amount) {
+  if (amount >= 100 && amount % 25 === 0) return amount;
+  const step = amount < 5 ? 0.5 : amount < 10 ? 1 : amount < 100 ? 5 : amount < 1000 ? 10 : 50;
+  return Math.max(Math.round(amount / step) * step, step);
+}
+
+// "56 g", "113ml", "1.5 g" in step text.
+const AMOUNT_IN_TEXT = new RegExp(String.raw`(?<![\d.,])(${String.raw`\d+(?:\.\d+)?`})(\s*)(g|ml)\b`, "g");
+
+/** Step text with the same clean amounts as the ingredient list: "Add 56 g butter" → "Add 55 g butter". */
+export function cleanAmountsInText(text) {
+  return text.replace(AMOUNT_IN_TEXT, (_match, value, space, unit) => `${cleanAmount(Number(value))}${space}${unit}`);
+}
+
 // --- Temperatures in text -----------------------------------------------------------------
 // Recipes store temperatures in the step text, always in Celsius ("Bake at 180°C"); the app
 // shows them in °F for imperial (inUnitSystem() in app/src/units.ts). Web recipes are often

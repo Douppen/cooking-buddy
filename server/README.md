@@ -122,7 +122,10 @@ The **Zod** recipe schema, used for requests and AI output: base metric units
 cues, timers, `origin` (`generated`; `library` only on recipes saved before the built-in
 recipes were removed) and `edits`. Also `RecipeDraftSchema` (a
 recipe as the AI writes it, without ids) and `toRecipe()`, which turns a draft into a valid
-Recipe and converts any temperatures left in °F or gas marks to °C (`toCelsiusInText()`).
+Recipe. It also tidies every AI recipe: temperatures left in °F or gas marks become °C
+(`toCelsiusInText()`), and g/ml amounts are rounded as recipes write them (`cleanAmount()`:
+under 5 to the half, 5–10 to 1, 10–100 to 5, 100–1000 to 10, multiples of 25 kept), in the
+ingredient list and the step text. Converted cups and ounces would otherwise give "113 g".
 
 ### `scaling.js` (servings and units)
 
