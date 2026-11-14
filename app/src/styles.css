@@ -86,7 +86,7 @@ body {
    one) and the ask field sit below it, shared by both views. */
 .cooking-shell {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
   block-size: 100%;
   min-block-size: 0;
   min-inline-size: 0;
@@ -122,6 +122,27 @@ body {
 
 .recipe-list p {
   margin: 0;
+}
+
+/* Running timers, one line each, between the lists and the answer. */
+.timers-dock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--uit-spacing-xsmall);
+  padding: var(--uit-spacing-small) var(--uit-spacing-large) var(--uit-spacing-small);
+}
+
+.timer-line {
+  display: flex;
+  align-items: center;
+  gap: var(--uit-spacing-small);
+  min-inline-size: 0;
+}
+
+.timer-icon {
+  inline-size: 24px;
+  block-size: 24px;
+  flex: none;
 }
 
 .answer-dock:not(:empty) {

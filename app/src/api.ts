@@ -2,6 +2,7 @@
 // writes them (/api/recipes/generate) and each question sends the whole recipe back to
 // /api/ask unchanged, so the server sees exactly what the cook follows, edits included.
 
+import type {TimerCommand} from './timers';
 import type {BaseUnit, UnitSystem} from './units';
 
 export interface Ingredient {
@@ -45,6 +46,8 @@ export interface Exchange {
 }
 
 export interface Answer {
+  /** A timer the cook asked for ("set a timer for 10 minutes"), or to stop one. */
+  timer?: TimerCommand;
   answer: string;
   /** The whole updated recipe, when the cook's words changed it ("I don't have eggs"). */
   recipe?: Recipe;
@@ -107,7 +110,7 @@ export async function askQuestion(
 ): Promise<Answer> {
   const body = await postJson('/api/ask', {recipe, question, unit_system: unitSystem, previous}, signal, ASK_TIMEOUT_MS);
   if (typeof body.answer !== 'string' || !body.answer) throw new Error('No answer');
-  return {answer: body.answer, recipe: body.recipe as Recipe | undefined};
+  return {answer: body.answer, recipe: body.recipe as Recipe | undefined, timer: body.timer as TimerCommand | undefined};
 }
 
 /** A failure the server explained in words meant for the cook ("That doesn't sound like something to cook…"). */

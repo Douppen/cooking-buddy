@@ -17,7 +17,9 @@
 //   image        optional: { mime_type: "image/jpeg" | "image/png" | "image/webp", data: base64 }
 // Response: { answer, model, ms } plus, when the recipe changed, { recipe, change_summary }:
 //   the whole updated recipe (same recipe_id, change_summary appended to edits). "Make it for
-//   6" changes only recipe.servings (1-8), and the app scales the amounts. Then `answer` is
+//   6" changes only recipe.servings (1-8), and the app scales the amounts. "Set a timer for 10
+//   minutes" adds { timer: { action: "start", seconds, label } } ("cancel the timer": { action:
+//   "cancel", label }, "" = all); the app runs the timer. Then `answer` is
 //   just the summary ("Scaled to 6 servings."): the app shows "Recipe updated".
 //
 // The prompt lives in ai/answer.js, the Gemini client in ai/gemini.js.
@@ -79,7 +81,7 @@ export async function handleAsk(req, res) {
     // counts as a failed attempt and the backup request gets a chance.
     const { value, attempt } = await withBackup(
       async (signal) => {
-        const { answer, changeSummary, draft, servings } = await answerQuestion(ai, request, signal);
+        const { answer, changeSummary, draft, servings, timer } = await answerQuestion(ai, request, signal);
         // New servings ("make it for 6") change only the cook's setting on the recipe: the
         // amounts stay for base_servings and the app scales them.
         const keptServings = servings ?? current.servings;
@@ -95,7 +97,7 @@ export async function handleAsk(req, res) {
           : servings
             ? { ...current, servings }
             : null;
-        return { answer, recipe, changeSummary };
+        return { answer, recipe, changeSummary, timer };
       },
       { backupAfterMs: EDIT_BACKUP_AFTER_MS, attemptTimeoutMs: 20_000 },
     );
@@ -107,6 +109,7 @@ export async function handleAsk(req, res) {
       model: MODEL,
       ms,
       ...(value.recipe ? { recipe: value.recipe, change_summary: value.changeSummary } : {}),
+      ...(value.timer ? { timer: value.timer } : {}),
     });
   } catch (err) {
     console.error(`ask failed after ${Math.round(performance.now() - started)} ms:`, failureReason(err));

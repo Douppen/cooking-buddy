@@ -46,6 +46,13 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   middle pinch is the system's Back. The cooking field sits under both views. Questions are about **the whole recipe**, not one step: the
   app sends no `step_index` to `/api/ask`.
 - **The answer shows above the ask field** on either view for 15 s and is read aloud.
+- **Timers by voice** ("set a timer for 10 minutes", "time the pasta", "start the timer for
+  this step", "stop the timer"): `/api/ask` returns `timer` (`{ action: "start", seconds,
+  label }` or `{ action: "cancel", label }`), minutes from the cook's words or the step's
+  time. The app runs it (`app/src/timers.ts`): one line per timer under the lists, with the
+  toolkit's timer icon, "Pasta · 8 min · done 15:42", updated once a minute. At most 3; the
+  same label restarts it. When one ends: "Pasta timer is done", shown under TIMER and said.
+  Timers live on the cooking screen only (leaving it stops them).
 - **A command ("swap the butter for oil", "leave out the carrots", "make it vegetarian") or
   "I don't have X" edits the recipe**. A question or wish ("can I swap the butter?", "do I
   need eggs?", "I'm watching my blood pressure, can I…") only gets an answer that suggests
@@ -67,7 +74,7 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
 - **Recipes live on the device** (`localStorage`, see `app/src/recipeStore.ts`), not on the
   server. An edit replaces the saved recipe under the same id.
 
-Nice to have, only once that works: timers per step, scaling servings, undoing an edit.
+Nice to have, only once that works: undoing an edit.
 Keep them as plain text in the two lists.
 
 App code: `main.tsx` (router), `RecipesContext.tsx` (the recipes saved on this device, kept

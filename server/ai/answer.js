@@ -30,6 +30,7 @@ const SYSTEM_INSTRUCTION = [
   "- Keep base_servings and write amounts for base_servings, like the recipe JSON you are given.",
   "- Return the whole updated recipe in `recipe` and a few words in `change_summary`, e.g. 'Swapped butter for olive oil'. Leave `answer` empty: the app says 'Recipe updated' itself.",
   "When the cook tells you to cook for a different number of people or servings ('make it for 6', 'scale it to 2 servings', 'double it' = twice the servings now, 'halve it'; a question like 'can I make it for 6?' only gets an answer, as above), set `servings` to the new number and leave out `recipe` (the app scales the amounts itself), with a few words in `change_summary`, e.g. 'Scaled to 6 servings'. Otherwise set `servings` to 0.",
+  "Timers: when the cook asks for one ('set a timer for 10 minutes', 'time the pasta', 'start a timer for this step', 'remind me in 5 minutes'), set timer.action to 'start', timer.minutes to what they said or else the time in the recipe step they mean (the lower end of a range, e.g. 'Bake 10-12 min' = 10), and timer.label to one or two words for what it times ('Pasta', 'Sauce', 'Oven'; 'Timer' if nothing fits). 'Stop the timer', 'cancel the pasta timer': timer.action 'cancel' with that label ('' for all timers). Leave the recipe as it is. Otherwise timer.action is 'none'.",
   "For ordinary questions, write `answer`, leave out `recipe` and set `change_summary` to an empty string.",
   "",
   RECIPE_WRITING_RULES,
@@ -47,11 +48,21 @@ const RESPONSE_JSON_SCHEMA = {
   properties: {
     change_summary: { type: "string", description: "A few words on how the recipe changed, or empty" },
     servings: { type: "integer", description: "The new number of servings the cook asked for, or 0" },
+    timer: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["none", "start", "cancel"] },
+        minutes: { type: "number", description: "For start: how long" },
+        label: { type: "string", description: "One or two words: what it times" },
+      },
+      required: ["action"],
+      propertyOrdering: ["action", "minutes", "label"],
+    },
     answer: { type: "string", description: "For a question: one or two short sentences, read aloud. Empty when the recipe changed" },
     recipe: { ...RECIPE_DRAFT_JSON_SCHEMA, description: "The whole updated recipe, only if it changed" },
   },
-  required: ["change_summary", "servings", "answer"],
-  propertyOrdering: ["change_summary", "servings", "answer", "recipe"],
+  required: ["change_summary", "servings", "timer", "answer"],
+  propertyOrdering: ["change_summary", "servings", "timer", "answer", "recipe"],
 };
 
 /**
@@ -62,7 +73,8 @@ const RESPONSE_JSON_SCHEMA = {
  * @param {AbortSignal} [abortSignal]  cancels the call (used by withBackup in gemini.js)
  * @returns {Promise<{ answer: string, changeSummary: string, draft: object | null, servings: number | null }>}
  *   draft is the changed recipe (see RecipeDraftSchema), or null when nothing changed;
- *   servings is the new number of servings the cook asked for ("make it for 6"), or null
+ *   servings is the new number of servings the cook asked for ("make it for 6"), or null;
+ *   timer is { action: "start", seconds, label } or { action: "cancel", label }, or null
  */
 export async function answerQuestion(ai, { recipe, step_index, question, previous, servings, unit_system, image }, abortSignal) {
   // The request's servings, else the cook's choice saved on the recipe, else its own.
@@ -113,6 +125,26 @@ export async function answerQuestion(ai, { recipe, step_index, question, previou
 
 // The app's servings setting goes from 1 to 8.
 const MAX_SERVINGS = 8;
+// A kitchen timer: up to 12 hours (a slow braise).
+const MAX_TIMER_MINUTES = 12 * 60;
+
+/** A timer the cook asked for, or null. "" label on cancel = all timers. */
+export function toTimer(timer) {
+  const label = String(timer?.label ?? "").trim().slice(0, 24);
+  if (timer?.action === "cancel") return { action: "cancel", label };
+  if (timer?.action !== "start") return null;
+  const minutes = Number(timer.minutes);
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  const seconds = Math.round(Math.min(minutes, MAX_TIMER_MINUTES) * 60);
+  return { action: "start", seconds, label: label ? label.charAt(0).toUpperCase() + label.slice(1) : "Timer" };
+}
+
+function timerAnswer(timer) {
+  if (timer.action === "cancel") return timer.label ? `${timer.label} timer stopped.` : "Timers stopped.";
+  const minutes = timer.seconds / 60;
+  const length = minutes >= 1 ? `${Math.round(minutes * 10) / 10} min` : `${timer.seconds} s`;
+  return `${timer.label} timer: ${length}.`;
+}
 
 /**
  * Gemini's reply as { answer, changeSummary, draft, servings }. A change (a new recipe, or
@@ -124,16 +156,20 @@ export function toAnswer(parsed) {
   const asked = Math.round(Number(parsed.servings));
   const servings = Number.isFinite(asked) && asked >= 1 ? Math.min(asked, MAX_SERVINGS) : null;
   const draft = parsed.recipe && changeSummary ? parsed.recipe : null;
+  const timer = toTimer(parsed.timer);
+  if (timer && !draft && !servings) {
+    return { answer: timerAnswer(timer), changeSummary: "", draft: null, servings: null, timer };
+  }
   if (draft || servings) {
     // Past the app's limit (12 → 8), say what the cook gets.
     const capped = servings && servings !== asked;
     const summary = changeSummary && !capped ? changeSummary : `Scaled to ${servings} servings`;
     const answer = `${summary.charAt(0).toUpperCase()}${summary.slice(1)}.`;
-    return { answer, changeSummary: summary, draft, servings };
+    return { answer, changeSummary: summary, draft, servings, timer };
   }
   const answer = String(parsed.answer ?? "").trim();
   if (!answer) throw new Error("empty answer");
-  return { answer, changeSummary: "", draft: null, servings: null };
+  return { answer, changeSummary: "", draft: null, servings: null, timer: null };
 }
 
 // The recipe as plain text: amounts scaled to `servings` in the units the cook sees,

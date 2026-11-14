@@ -8,7 +8,7 @@ import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
 import { HomeRequestSchema } from "./home.js";
 import { NotFoodError, namedDish, sourceOf, toFound, toSorted } from "./ai/generate.js";
-import { recipeContext, toAnswer } from "./ai/answer.js";
+import { recipeContext, toAnswer, toTimer } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
 
 // A fixed test recipe; the app itself has no built-in recipes (the AI writes them).
@@ -345,6 +345,7 @@ test("a recipe change gets a standard answer, not Gemini's words", () => {
     changeSummary: "swapped butter for olive oil",
     draft,
     servings: null,
+    timer: null,
   });
   assert.equal(toAnswer({ change_summary: "Swapped butter for oil", answer: "Use oil now!", recipe: draft }).answer, "Swapped butter for oil.");
   assert.deepEqual(toAnswer({ change_summary: "", answer: " Fry for 3 minutes. " }), {
@@ -352,6 +353,7 @@ test("a recipe change gets a standard answer, not Gemini's words", () => {
     changeSummary: "",
     draft: null,
     servings: null,
+    timer: null,
   });
   assert.equal(toAnswer({ change_summary: "", answer: "Yes.", recipe: draft }).draft, null); // no summary: no change
   // "Make it for 6": new servings only, within 1-8.
@@ -360,6 +362,7 @@ test("a recipe change gets a standard answer, not Gemini's words", () => {
     changeSummary: "Scaled to 6 servings",
     draft: null,
     servings: 6,
+    timer: null,
   });
   const capped = toAnswer({ change_summary: "Doubled to 12 servings", servings: 12, answer: "" });
   assert.equal(capped.servings, 8);
@@ -376,4 +379,18 @@ test("HTML entities copied from a web page are decoded", () => {
   draft.steps[0].instruction = "Add &#189; tsp ground nutmeg. Simmer 5 min.";
   const tidied = toRecipe(draft, { recipe_id: "x", origin: "generated", edits: [] });
   assert.equal(tidied.steps[0].instruction, "Add ½ tsp ground nutmeg. Simmer 5 min.");
+});
+
+test("timers the cook asks for", () => {
+  assert.deepEqual(toTimer({ action: "start", minutes: 10, label: "pasta" }), { action: "start", seconds: 600, label: "Pasta" });
+  assert.deepEqual(toTimer({ action: "start", minutes: 0.5, label: "" }), { action: "start", seconds: 30, label: "Timer" });
+  assert.equal(toTimer({ action: "start", minutes: 0, label: "x" }), null);
+  assert.equal(toTimer({ action: "start", minutes: 9999, label: "Stew" }).seconds, 12 * 3600);
+  assert.deepEqual(toTimer({ action: "cancel", label: "" }), { action: "cancel", label: "" });
+  assert.equal(toTimer({ action: "none" }), null);
+  assert.equal(toTimer(undefined), null);
+  const set = toAnswer({ change_summary: "", servings: 0, timer: { action: "start", minutes: 10, label: "Pasta" }, answer: "OK" });
+  assert.equal(set.answer, "Pasta timer: 10 min.");
+  assert.deepEqual(set.timer, { action: "start", seconds: 600, label: "Pasta" });
+  assert.equal(toAnswer({ change_summary: "", servings: 0, timer: { action: "cancel", label: "" }, answer: "" }).answer, "Timers stopped.");
 });
