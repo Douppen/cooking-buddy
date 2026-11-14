@@ -163,6 +163,19 @@ test("a long step doesn't throw away the recipe", () => {
     { recipe_id: "gen-noodles-x", origin: "generated", edits: [] },
   );
   assert.equal(made.steps.length, 1);
+  // Long ingredient names and big batches are real recipes too.
+  const batch = toRecipe(
+    {
+      title: "Chocolate Chip Cookies",
+      base_servings: 24,
+      ingredients: [
+        { name: "Boneless skinless chicken breasts, cut into bite-sized pieces", base_amount: 500, base_unit: "g", substitutes: [], optional: false },
+      ],
+      steps: [{ title: "Bake", instruction: "Bake 10 min.", visual_cues: [], timer_sec: 600 }],
+    },
+    { recipe_id: "gen-batch-x", origin: "generated", edits: [] },
+  );
+  assert.equal(batch.base_servings, 24);
 });
 
 test("small liquid amounts are stored in spoons", () => {

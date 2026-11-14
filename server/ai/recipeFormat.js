@@ -44,7 +44,7 @@ export const RECIPE_DRAFT_JSON_SCHEMA = {
   type: "object",
   properties: {
     title: { type: "string", description: "Short dish name" },
-    base_servings: { type: "integer", minimum: 1, maximum: 20 },
+    base_servings: { type: "integer", minimum: 1, maximum: 50 },
     ingredients: { type: "array", items: INGREDIENT },
     steps: { type: "array", items: STEP },
   },

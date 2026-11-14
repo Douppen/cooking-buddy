@@ -67,20 +67,21 @@ export const RecipeSchema = z.object({
 
 // What the AI writes when it creates or edits a recipe: the recipe without the fields the
 // server owns (recipe_id, step index, origin, edits). toRecipe() turns it into a Recipe.
+// The limits only stop runaways. Web recipes are long-winded ("Boneless skinless chicken
+// breasts, cut into bite-sized pieces", a step naming every amount, a batch of 24 cookies),
+// and a recipe that fails here goes to the fallback, so they sit well above normal sizes.
+// The prompt asks for the short version (18-word steps).
 export const RecipeDraftSchema = z.object({
-  title: z.string().min(1).max(80),
-  base_servings: z.number().int().positive().max(20),
+  title: z.string().min(1).max(120),
+  base_servings: z.number().int().positive().max(50),
   ingredients: z
-    .array(IngredientSchema.omit({ id: true }).extend({ name: z.string().min(1).max(60) }))
+    .array(IngredientSchema.omit({ id: true }).extend({ name: z.string().min(1).max(120) }))
     .min(1)
-    .max(25),
+    .max(30),
   steps: z
-    // The prompt asks for at most 18 words; this only stops runaways. A step naming every
-    // ingredient's amount can pass 160 characters, and rejecting the whole recipe for that
-    // sent good web recipes to the fallback.
     .array(StepSchema.omit({ index: true }).extend({ instruction: z.string().min(1).max(300) }))
     .min(1)
-    .max(15),
+    .max(20),
 });
 
 /**
