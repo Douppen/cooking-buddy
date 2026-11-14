@@ -1,7 +1,7 @@
 // `npm test` in app/ (node's test runner, see units.test.ts).
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {applyTimerCommand, timerDoneSpeech, timerDoneText, timerLine, type Timer} from './timers.ts';
+import {applyTimerCommand, markDone, timeLeft, timerDoneSpeech, type Timer} from './timers.ts';
 
 const at = (h: number, m: number) => new Date(2026, 10, 14, h, m).getTime();
 
@@ -26,14 +26,16 @@ test('at most 3 timers: a new one replaces the oldest', () => {
   assert.deepEqual(timers.map(t => t.label), ['B', 'C', 'D']);
 });
 
-test('a timer counts down to the second and shows when it ends', () => {
+test('a timer counts down to the second, then shows "Time\'s up"', () => {
   const timer: Timer = {id: 'x', label: 'Pasta', endsAt: at(15, 42)};
-  assert.equal(timerLine(timer, at(15, 34)), 'Pasta · 8:00 · done 15:42');
-  assert.equal(timerLine(timer, at(15, 34) + 1_000), 'Pasta · 7:59 · done 15:42');
-  assert.equal(timerLine(timer, at(15, 41) + 30_500), 'Pasta · 0:30 · done 15:42'); // rounds up
-  assert.equal(timerLine(timer, at(15, 43)), 'Pasta · 0:00 · done 15:42');
-  assert.equal(timerLine({id: 'y', label: 'Stew', endsAt: at(17, 5)}, at(15, 0)), 'Stew · 2:05:00 · done 17:05');
-  assert.equal(timerDoneText(timer), 'Pasta timer is done.');
-  assert.equal(timerDoneText({...timer, label: 'Timer'}), 'Your timer is done.');
+  assert.equal(timeLeft(timer, at(15, 34)), '8:00');
+  assert.equal(timeLeft(timer, at(15, 34) + 1_000), '7:59');
+  assert.equal(timeLeft(timer, at(15, 41) + 30_500), '0:30'); // rounds up
+  assert.equal(timeLeft(timer, at(15, 43)), '0:00');
+  assert.equal(timeLeft({id: 'y', label: 'Stew', endsAt: at(17, 5)}, at(15, 0)), '2:05:00');
+  const [ended, other] = markDone([timer, {id: 'y', label: 'Rice', endsAt: at(16, 0)}], 'x');
+  assert.equal(timeLeft(ended, at(15, 42)), "Time's up");
+  assert.equal(other.done, undefined);
   assert.equal(timerDoneSpeech(timer), "Time's up! Pasta timer is done.");
+  assert.equal(timerDoneSpeech({...timer, label: 'Timer'}), "Time's up! Your timer is done.");
 });

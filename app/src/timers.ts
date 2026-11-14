@@ -1,9 +1,10 @@
 // Kitchen timers on the cooking screen, started and stopped by voice ("set a timer for 10
 // minutes", "time the pasta", "stop the timer"): /api/ask returns the timer, the app runs it.
-// Free of React and the DOM, like cookingState.ts. The screen shows each timer as one line
-// counting down every second, "Pasta · 8:42 · done 15:42" (the cook asked for a live
-// countdown; native re-sends the whole screen per update, so it may tick less often there).
-// When one ends, the app says so.
+// Free of React and the DOM, like cookingState.ts. Each timer is one line on screen, its
+// label and the time left counting down every second, "Pasta 8:42" (the cook asked for a
+// live countdown; native re-sends the whole screen per update, so it may tick less often
+// there). That line is the whole UI: starting a timer shows it (the voice confirms), and when
+// it ends it reads "Time's up" for TIMER_DONE_VISIBLE_MS, with a ping and the voice, then goes.
 
 export interface Timer {
   id: string;
@@ -11,6 +12,8 @@ export interface Timer {
   label: string;
   /** When it ends, in ms since the epoch. */
   endsAt: number;
+  /** It ended: shows "Time's up" until TIMER_DONE_VISIBLE_MS after endsAt. */
+  done?: boolean;
 }
 
 /** What /api/ask asks for: start one, or cancel by label ("" = all). */
@@ -39,27 +42,25 @@ export function applyTimerCommand(timers: readonly Timer[], command: TimerComman
   return [...others, timer].slice(-MAX_TIMERS);
 }
 
-/** "Pasta · 8:42 · done 15:42": time left (m:ss, or h:mm:ss) and the clock time it ends. */
-export function timerLine(timer: Timer, now: number): string {
+/** The time left, "8:42" (h:mm:ss past an hour), or "Time's up" once it ended. */
+export function timeLeft(timer: Timer, now: number): string {
+  if (timer.done) return "Time's up";
   const total = Math.max(0, Math.ceil((timer.endsAt - now) / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = String(total % 60).padStart(2, '0');
-  const left = h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
-  const end = new Date(timer.endsAt);
-  const clock = `${end.getHours()}:${String(end.getMinutes()).padStart(2, '0')}`;
-  return `${timer.label} · ${left} · done ${clock}`;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
 }
 
-/** Shown when a timer ends. */
-export function timerDoneText(timer: Timer): string {
-  return timer.label === 'Timer' ? 'Your timer is done.' : `${timer.label} timer is done.`;
+/** The timers once `id` ended: it stays, showing "Time's up". */
+export function markDone(timers: readonly Timer[], id: string): Timer[] {
+  return timers.map(t => (t.id === id ? {...t, done: true} : t));
 }
 
 /** Said after the ping when a timer ends. */
 export function timerDoneSpeech(timer: Timer): string {
-  return `Time's up! ${timerDoneText(timer)}`;
+  return timer.label === 'Timer' ? "Time's up! Your timer is done." : `Time's up! ${timer.label} timer is done.`;
 }
 
-/** How long the "timer is done" notice stays: shorter than an answer. */
-export const TIMER_NOTICE_MS = 3_000;
+/** How long an ended timer shows "Time's up" before it goes. */
+export const TIMER_DONE_VISIBLE_MS = 3_000;

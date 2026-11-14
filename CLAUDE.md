@@ -52,12 +52,13 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
 - **Timers by voice** ("set a timer for 10 minutes", "time the pasta", "start the timer for
   this step", "stop the timer"): `/api/ask` returns `timer` (`{ action: "start", seconds,
   label }` or `{ action: "cancel", label }`), minutes from the cook's words or the step's
-  time. The app runs it (`app/src/timers.ts`): one line per timer under the lists, with the
-  toolkit's timer icon, counting down every second: "Pasta · 7:58 · done 15:42" (the cook
-  asked for a live countdown; `TimerDock.tsx` redraws only that row). At most 3; the
-  same label restarts it. When one ends: a short two-tone ping (Web Audio, `app/src/chime.ts`,
-  plays even with Voice off), then "Time's up! Pasta timer is done." said, and shown under
-  TIMER for 3 s.
+  time. The app runs it (`app/src/timers.ts`). That line is the whole timer UI: one per
+  timer under the lists, the toolkit's timer icon, the label and the time left counting
+  down every second, "⏱ Pasta 7:58" (the cook asked for a live countdown; `TimerDock.tsx`
+  redraws only that row). Starting one shows no text above the field: the line appears and
+  the voice confirms. At most 3; the same label restarts it. When one ends, its line reads
+  "Time's up" for 3 s, with a short two-tone ping (Web Audio, `app/src/chime.ts`, plays even
+  with Voice off) and then "Time's up! Pasta timer is done." said.
   Timers live on the cooking screen only (leaving it stops them). On home, a timer request
   gets "Timers work once a recipe is open…" (not the not-food message).
 - **A command ("swap the butter for oil", "leave out the carrots", "make it vegetarian") or
@@ -271,8 +272,7 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
 
 - Timers count down every second on the web (`TimerDock.tsx`), the one exception to "nothing
   that updates every second". Native re-sends the whole screen per update over Bluetooth:
-  measure whether 1 s ticks are affordable there, else tick every 5–10 s or once a minute,
-  keeping "done 15:42" as the exact time.
+  measure whether 1 s ticks are affordable there, else tick every 5–10 s or once a minute.
 - The ask field (`AskField.tsx`): the web app gets no microphone, only the system composer,
   so sending is a separate ➤ target that takes focus once the text is in. Native (with the
   phone's speech recognition) can make it one record button: pinch to record, pinch to send.

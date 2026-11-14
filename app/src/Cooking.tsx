@@ -23,7 +23,7 @@ import {AskField, SEND_HINT} from './AskField';
 import {speak, stopSpeaking} from './speech';
 import {TimerDock} from './TimerDock';
 import {CHIME_MS, playChime, unlockChime} from './chime';
-import {TIMER_NOTICE_MS, applyTimerCommand, timerDoneSpeech, timerDoneText, type Timer} from './timers';
+import {TIMER_DONE_VISIBLE_MS, applyTimerCommand, markDone, timerDoneSpeech, type Timer} from './timers';
 import type {UnitSystem} from './units';
 
 // Cooking one recipe: the ingredients, and one swipe right, all the steps. Below both, a
@@ -52,18 +52,22 @@ export function Cooking({
 
   useEffect(() => {
     if (!timers.length) return;
-    // Each timer ends on time: said aloud and shown above the ask field.
+    // Each timer ends on time: its line reads "Time's up", with a ping and then "Time's up!
+    // Pasta timer is done.", and goes TIMER_DONE_VISIBLE_MS later.
     const endings = timers.map(timer =>
-      setTimeout(
-        () => {
-          setTimers(running => running.filter(t => t.id !== timer.id));
-          // A ping, then "Time's up! Pasta timer is done." The notice goes after TIMER_NOTICE_MS.
-          dispatch({type: 'notice', title: 'TIMER', text: timerDoneText(timer)});
-          playChime();
-          setTimeout(() => speak(timerDoneSpeech(timer)), CHIME_MS);
-        },
-        Math.max(0, timer.endsAt - Date.now()),
-      ),
+      timer.done
+        ? setTimeout(
+            () => setTimers(all => all.filter(t => t.id !== timer.id)),
+            Math.max(0, timer.endsAt + TIMER_DONE_VISIBLE_MS - Date.now()),
+          )
+        : setTimeout(
+            () => {
+              setTimers(all => markDone(all, timer.id));
+              playChime();
+              setTimeout(() => void speak(timerDoneSpeech(timer)), CHIME_MS);
+            },
+            Math.max(0, timer.endsAt - Date.now()),
+          ),
     );
     return () => endings.forEach(clearTimeout);
   }, [timers]);
@@ -80,11 +84,10 @@ export function Cooking({
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  // An answer shows for a while, then goes away; a timer notice sooner.
+  // An answer shows for a while, then goes away.
   useEffect(() => {
     if (state.mode.kind !== 'answer' && state.mode.kind !== 'error') return;
-    const visible = state.mode.kind === 'answer' && state.mode.title === 'TIMER' ? TIMER_NOTICE_MS : ANSWER_VISIBLE_MS;
-    const timer = setTimeout(() => dispatch({type: 'dismiss'}), visible);
+    const timer = setTimeout(() => dispatch({type: 'dismiss'}), ANSWER_VISIBLE_MS);
     return () => clearTimeout(timer);
   }, [state.mode]);
 
@@ -125,8 +128,9 @@ export function Cooking({
         return speak(changed ? 'Recipe updated.' : answer).then(() => {
           if (controller.signal.aborted) return;
           if (changed) onRecipeChange(changed);
-          // A timer's confirmation ("Pasta timer: 10 min.") is labelled TIMER, like its end.
-          if (timer && !changed) dispatch({type: 'notice', title: 'TIMER', text: answer});
+          // A timer needs no text: its line under the lists is the confirmation (the voice
+          // says "Pasta timer: 10 min.").
+          if (timer && !changed) dispatch({type: 'dismiss'});
           else dispatch({type: 'answered', answer, changed: Boolean(changed)});
         });
       })

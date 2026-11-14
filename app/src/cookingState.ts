@@ -19,7 +19,7 @@ export const VIEWS: readonly View[] = ['ingredients', 'steps'];
 export type Mode =
   | {kind: 'idle'}
   | {kind: 'asking'; question: string}
-  | {kind: 'answer'; answer: string; changed: boolean; title?: string}
+  | {kind: 'answer'; answer: string; changed: boolean}
   | {kind: 'error'; message: string};
 
 export interface CookingState {
@@ -33,7 +33,6 @@ export type CookingAction =
   | {type: 'show'; view: View}
   | {type: 'ask'; question: string}
   | {type: 'answered'; answer: string; changed: boolean}
-  | {type: 'notice'; title: string; text: string}
   | {type: 'failed'; message: string}
   | {type: 'dismiss'};
 
@@ -51,8 +50,6 @@ export function cookingReducer(state: CookingState, action: CookingAction): Cook
       return {...state, mode: {kind: 'asking', question: action.question}};
     case 'answered':
       return {...state, mode: {kind: 'answer', answer: action.answer, changed: action.changed}};
-    case 'notice':
-      return {...state, mode: {kind: 'answer', answer: action.text, changed: false, title: action.title}};
     case 'failed':
       return {...state, mode: {kind: 'error', message: action.message}};
     case 'dismiss':
@@ -72,7 +69,7 @@ export function answerText(mode: Mode): {label: string | null; text: string} | n
     case 'answer':
       // A change ("swap the butter for oil", "make it for 6") shows only that it happened:
       // both lists already show the new recipe.
-      return mode.changed ? {label: null, text: 'Recipe updated'} : {label: mode.title ?? 'ANSWER', text: mode.answer};
+      return mode.changed ? {label: null, text: 'Recipe updated'} : {label: 'ANSWER', text: mode.answer};
     case 'error':
       return {label: 'NO ANSWER', text: mode.message};
   }
