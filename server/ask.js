@@ -82,6 +82,7 @@ export async function handleAsk(req, res) {
               edits: [...current.edits, changeSummary],
               previous: current,
               source: current.source,
+              servings: current.servings,
             })
           : null;
         return { answer, recipe, changeSummary };

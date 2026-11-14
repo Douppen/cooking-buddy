@@ -25,6 +25,8 @@ export interface Recipe {
   recipe_id: string;
   title: string;
   base_servings: number;
+  /** The servings the cook picked (the setting on home); amounts are for base_servings. */
+  servings?: number | null;
   ingredients: Ingredient[];
   steps: RecipeStep[];
   /** 'generated' = written by the AI. 'library' = from the old server recipe files. */

@@ -64,7 +64,8 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
   if (image) parts.push({ inlineData: { mimeType: image.mime_type, data: image.data } });
   parts.push({
     text: [
-      recipeContext(recipe, step_index, servings ?? recipe.base_servings, unit_system),
+      // The request's servings, else the cook's choice saved on the recipe, else its own.
+      recipeContext(recipe, step_index, servings ?? recipe.servings ?? recipe.base_servings, unit_system),
       "",
       `Recipe JSON (amounts for base_servings ${recipe.base_servings}):`,
       JSON.stringify(recipeToDraft(recipe)),
@@ -117,6 +118,9 @@ export function recipeContext(recipe, stepIndex, servings, unitSystem = "metric"
     lines.push(`- ${scaled[i].display}${optional}${subs}`);
   });
   lines.push("Steps:");
+  if (servings !== recipe.base_servings) {
+    lines.push(`(Amounts in the steps are for ${recipe.base_servings} servings; scale them to ${servings}, as the ingredients above are.)`);
+  }
   recipe.steps.forEach((step, i) => {
     const current = i === stepIndex ? "  <- CURRENT STEP" : "";
     lines.push(`${i + 1}. ${step.title}: ${step.instruction}${current}`);

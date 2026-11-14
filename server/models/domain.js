@@ -58,6 +58,14 @@ export const RecipeSchema = z.object({
     .array(z.string())
     .default([])
     .describe("Short notes on changes the AI made for this cook, oldest first"),
+  servings: z
+    .number()
+    .int()
+    .positive()
+    .max(100)
+    .nullable()
+    .default(null)
+    .describe("Servings the cook picked (the app's setting); amounts stay for base_servings"),
   source: z
     .object({ name: z.string() })
     .nullable()
@@ -90,7 +98,7 @@ export const RecipeDraftSchema = z.object({
  * rename what it didn't touch), and sets the server-owned fields. Throws if the result
  * isn't a valid Recipe.
  */
-export function toRecipe(draft, { recipe_id, origin, edits, previous, source = null }) {
+export function toRecipe(draft, { recipe_id, origin, edits, previous, source = null, servings = null }) {
   const parsed = tidy(RecipeDraftSchema.parse(draft));
   const previousIds = new Map((previous?.ingredients ?? []).map((ing) => [ing.name.toLowerCase(), ing.id]));
   const used = new Set();
@@ -104,7 +112,7 @@ export function toRecipe(draft, { recipe_id, origin, edits, previous, source = n
     return { id, ...ing };
   });
   const steps = parsed.steps.map((step, index) => ({ index, ...step }));
-  return RecipeSchema.parse({ ...parsed, recipe_id, ingredients, steps, origin, edits, source });
+  return RecipeSchema.parse({ ...parsed, recipe_id, ingredients, steps, origin, edits, source, servings });
 }
 
 // g/ml rounded as recipes write them; under 50 ml in spoons ("15 ml" → "1 tbsp"); spoons to

@@ -8,8 +8,8 @@
 // recipe ("I don't have eggs"); the answer then says what changed, and both views show the
 // updated recipe.
 
-import type {Ingredient} from './api';
-import {inUnitSystem, measureText, type UnitSystem} from './units';
+import type {Ingredient, Recipe} from './api';
+import {countWords, inUnitSystem, measureText, scaleAmountsInText, type UnitSystem} from './units';
 
 export type View = 'ingredients' | 'steps';
 
@@ -76,18 +76,41 @@ export function answerText(mode: Mode): {label: string; text: string} | null {
 /** How long an answer stays on screen. */
 export const ANSWER_VISIBLE_MS = 15_000;
 
+/** The servings the cook picked for this recipe (saved on it), else the recipe's own. */
+export function servingsOf(recipe: Recipe): number {
+  return recipe.servings ?? recipe.base_servings;
+}
+
 /**
- * One ingredient line for the recipe's base servings, in the cook's unit system:
+ * How the cook's servings scale the recipe: amounts are stored for base_servings. Also the
+ * words of counted ingredients, so step text scales "2 eggs" (see scaleAmountsInText()).
+ */
+export function scalingFor(recipe: Recipe): Scaling {
+  return {factor: servingsOf(recipe) / recipe.base_servings, counted: countWords(recipe.ingredients)};
+}
+
+export interface Scaling {
+  factor: number;
+  counted: string[];
+}
+
+const UNSCALED: Scaling = {factor: 1, counted: []};
+
+/**
+ * One ingredient line for the cook's servings, in the cook's unit system:
  * "250 g Plain flour" or "8.8 oz Plain flour", "2 Egg". Same amounts as the server gives
  * the AI (server/scaling.js), so answers match what the cook sees.
  */
-export function ingredientLine(ingredient: Ingredient, system: UnitSystem): string {
-  const amount = measureText(ingredient.base_amount, ingredient.base_unit, system);
+export function ingredientLine(ingredient: Ingredient, system: UnitSystem, scaling: Scaling = UNSCALED): string {
+  const amount = measureText(ingredient.base_amount * scaling.factor, ingredient.base_unit, system);
   const line = `${amount} ${inUnitSystem(ingredient.name, system)}`;
   return ingredient.optional ? `${line} (optional)` : line;
 }
 
-/** Step text in the cook's unit system: "Bake at 200°C" becomes "Bake at 400°F" in imperial. */
-export function stepText(text: string, system: UnitSystem): string {
-  return inUnitSystem(text, system);
+/**
+ * Step text for the cook's servings and unit system: amounts scaled ("Add 140 g butter" for
+ * half the servings → "Add 70 g butter"), then "Bake at 200°C" → "Bake at 400°F" in imperial.
+ */
+export function stepText(text: string, system: UnitSystem, scaling: Scaling = UNSCALED): string {
+  return inUnitSystem(scaleAmountsInText(text, scaling.factor, scaling.counted), system);
 }

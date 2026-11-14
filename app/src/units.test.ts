@@ -2,7 +2,7 @@
 // the types). Not part of the typecheck (see tsconfig.json), so it needs no Node types.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {inUnitSystem, measureText} from './units.ts';
+import {countWords, inUnitSystem, measureText, scaleAmountsInText} from './units.ts';
 
 test('metric amounts are shown as stored', () => {
   assert.equal(measureText(250, 'g', 'metric'), '250 g');
@@ -88,4 +88,21 @@ test('scaled metric amounts are tidy, small liquids in spoons', () => {
   assert.equal(measureText(5, 'ml', 'metric'), '1 tsp');
   assert.equal(measureText(60, 'ml', 'metric'), '60 ml');
   assert.equal(measureText(1.5, 'unit', 'metric'), '1.5');
+});
+
+test('step text scales amounts and counted ingredients, not times or sizes', () => {
+  const counted = countWords([
+    {name: 'Large eggs', base_unit: 'unit'},
+    {name: 'Garlic cloves, minced', base_unit: 'unit'},
+    {name: 'Butter', base_unit: 'g'},
+  ]);
+  const scale = (text: string, factor: number) => scaleAmountsInText(text, factor, counted);
+  assert.equal(scale('Beat 140 g butter with 2 large eggs for 2 min.', 0.5), 'Beat 70 g butter with 1 large eggs for 2 min.');
+  assert.equal(scale('Fry 3 garlic cloves in 2 tbsp oil at 180°C for 10 min.', 2), 'Fry 6 garlic cloves in 4 tbsp oil at 180°C for 10 min.');
+  assert.equal(scale('Add ½ tsp salt and 1½ tbsp sugar.', 2), 'Add 1 tsp salt and 3 tbsp sugar.');
+  assert.equal(scale('Pour in 300 ml stock, then 15 ml soy sauce.', 0.5), 'Pour in 150 ml stock, then 1½ tsp soy sauce.');
+  assert.equal(scale('Add 150–200 g flour.', 2), 'Add 300–400 g flour.');
+  assert.equal(scale('Cut into 2 cm cubes and rest 5 minutes.', 3), 'Cut into 2 cm cubes and rest 5 minutes.');
+  assert.equal(scale('A pinch of salt, 1 pinch pepper.', 4), 'A pinch of salt, ¼ tsp pepper.');
+  assert.equal(scale('Beat 140 g butter.', 1), 'Beat 140 g butter.');
 });

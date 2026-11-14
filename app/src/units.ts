@@ -107,6 +107,80 @@ const METRIC_IN_TEXT = new RegExp(
 
 const ML_PER: Record<string, number> = {ml: 1, cl: 10, dl: 100, l: 1000};
 
+// --- Scaling amounts in step text -------------------------------------------------------
+// Steps name their amounts ("Add 140 g butter and 2 eggs"), for the recipe's base servings.
+// For the cook's servings, scale the numbers that are amounts: a number with a unit, or a
+// count followed by a counted ingredient ("2 garlic cloves"). Times, temperatures and sizes
+// ("10 min", "180°C", "2 cm") have no such unit or ingredient after them and stay.
+
+// A number as the server writes it: "140", "1.5", "½", "1½".
+const AMOUNT = String.raw`\d+(?:\.\d+)?[¼½¾⅓⅔]?|[¼½¾⅓⅔]`;
+const GLYPHS: Record<string, number> = {'¼': 0.25, '½': 0.5, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3};
+const SCALABLE_IN_TEXT = new RegExp(
+  String.raw`(?<![\d.,¼½¾⅓⅔])(${AMOUNT})(?:\s*(?:-|–|to)\s*(${AMOUNT}))?` +
+    String.raw`(?:\s*(kg|g|ml|l|tsp|tbsp|pinch(?:es)?)\b|(?=((?:\s+[A-Za-z][\w'-]*){1,3})))`,
+  'g',
+);
+// Words that don't identify a counted ingredient ("2 large eggs": "eggs" does).
+const NOT_INGREDIENT_WORDS = new Set(['large', 'small', 'medium', 'fresh', 'ripe', 'whole', 'very', 'and', 'the', 'of']);
+// Units and other words after a number that is not an amount to scale.
+const NOT_COUNT_WORDS = new Set(['min', 'mins', 'minute', 'minutes', 'hour', 'hours', 'sec', 'secs', 'seconds', 'cm', 'mm', 'in', 'inch', 'inches', 'degrees']);
+
+function amountValue(text: string): number {
+  const glyph = text.slice(-1);
+  if (GLYPHS[glyph] !== undefined) return Number(text.slice(0, -1) || 0) + GLYPHS[glyph];
+  return Number(text);
+}
+
+function stem(word: string): string {
+  return word.toLowerCase().replace(/(?:es|s)$/, '');
+}
+
+/**
+ * The words that identify counted ingredients (base_unit 'unit'): "Garlic cloves, minced"
+ * gives "garlic" and "clove". For scaleAmountsInText().
+ */
+export function countWords(ingredients: ReadonlyArray<{name: string; base_unit: string}>): string[] {
+  return ingredients
+    .filter(ing => ing.base_unit === 'unit')
+    .flatMap(ing => ing.name.split(',')[0].toLowerCase().split(/[^a-z]+/))
+    .filter(word => word.length >= 3 && !NOT_INGREDIENT_WORDS.has(word))
+    .map(stem);
+}
+
+/**
+ * Step text with its amounts scaled by `factor` (cook's servings / base servings), written
+ * like the ingredient list: "Add 140 g butter and 2 eggs" at ½ → "Add 70 g butter and 1
+ * eggs". g and ml get cleanAmount() (ml under 50 as spoons), spoons and pinches spoons(),
+ * counts one decimal. `counted` is countWords(recipe.ingredients). Factor 1: unchanged.
+ */
+export function scaleAmountsInText(text: string, factor: number, counted: readonly string[]): string {
+  if (factor === 1) return text;
+  return text.replace(
+    SCALABLE_IN_TEXT,
+    (match, first: string, second: string | undefined, unit: string | undefined, words: string | undefined) => {
+      const values = (second === undefined ? [first] : [first, second]).map(v => amountValue(v) * factor);
+      if (unit) {
+        const shown = values.map(v => scaledMeasure(v, unit));
+        if (shown.length === 2 && shown[0].unit === shown[1].unit) {
+          return `${shown[0].amount}–${shown[1].amount} ${shown[1].unit}`;
+        }
+        return shown.map(m => `${m.amount} ${m.unit}`).join('–');
+      }
+      // A count: only if a counted ingredient follows, and not a time or size ("2 cm").
+      const following = (words ?? '').trim().toLowerCase().split(/\s+/);
+      if (NOT_COUNT_WORDS.has(following[0]) || !following.some(w => counted.includes(stem(w)))) return match;
+      return values.map(v => decimal(v, 1)).join('–');
+    },
+  );
+}
+
+function scaledMeasure(amount: number, unit: string): Measure {
+  if (unit === 'kg' || unit === 'l') return {amount: decimal(amount, 2), unit};
+  if (unit === 'g' || unit === 'ml') return measure(amount, unit, 'metric');
+  return spoons(amount, unit.startsWith('pinch') ? 'pinch' : (unit as 'tsp' | 'tbsp'));
+}
+
 /**
  * Text the AI wrote (step instructions, ingredient names) in the cook's unit system:
  * "Bake at 200°C" → "Bake at 400°F", "100 ml milk" → "½ cup milk", "2 cm cubes" → "¾ in

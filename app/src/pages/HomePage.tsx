@@ -26,7 +26,8 @@ const UNITS_TOGGLE_MATERIAL = createDefaultContainerMaterial({
 
 // How many servings the new recipe is for: a box like a list row. While it has focus, swipe right
 // (ArrowRight) adds one and swipe left (ArrowLeft) takes one away; elsewhere swipes don't
-// touch it. 1 to 8 (the server accepts up to 20, server/generate.js).
+// touch it. 1 to 8. Saved on the recipe as `servings`; the recipe keeps its own base_servings
+// and the cooking screen scales amounts (scalingFor() in cookingState.ts).
 const DEFAULT_SERVINGS = 2;
 const MIN_SERVINGS = 1;
 const MAX_SERVINGS = 8;
@@ -76,7 +77,8 @@ export function HomePage() {
     generateRecipe(asked, controller.signal)
       .then(recipe => {
         if (controller.signal.aborted) return;
-        saveRecipe(recipe);
+        // The recipe keeps its source's servings; the cook's choice is saved next to them.
+        saveRecipe({...recipe, servings});
         // Push, so Back from cooking returns here, with this recipe on top.
         navigate(`/cook/${recipe.recipe_id}`);
       })

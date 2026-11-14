@@ -234,6 +234,19 @@ test("scaled metric amounts are tidy, small liquids in spoons (same as the app)"
   assert.equal(show(1.5, "unit"), "1.5 X");
 });
 
+test("the cook's servings live on the recipe: kept through edits, used for answers", () => {
+  const picked = { ...recipe, servings: 2 }; // the fixture is for 4
+  const text = recipeContext(picked, undefined, picked.servings);
+  assert.match(text, /making 2 servings/);
+  assert.match(text, /- 125 g Plain flour/); // 250 g for 4
+  assert.match(text, /Amounts in the steps are for 4 servings; scale them to 2/);
+  assert.doesNotMatch(recipeContext(recipe, undefined, 4), /Amounts in the steps/);
+  const edited = toRecipe(recipeToDraft(picked), { recipe_id: picked.recipe_id, origin: "generated", edits: ["x"], servings: picked.servings });
+  assert.equal(edited.servings, 2);
+  assert.equal(edited.base_servings, 4);
+  assert.ok(AskRequestSchema.safeParse({ recipe: picked, question: "How much flour?" }).success);
+});
+
 test("generate request validation", () => {
   assert.ok(GenerateRequestSchema.safeParse({ request: "carbonara for 4" }).success);
   assert.equal(GenerateRequestSchema.safeParse({ request: "   " }).success, false);

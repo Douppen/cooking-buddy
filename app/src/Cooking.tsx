@@ -1,4 +1,4 @@
-import {useEffect, useReducer, useRef, useState} from 'react';
+import {useEffect, useMemo, useReducer, useRef, useState} from 'react';
 import {
   InputTextView,
   Pager,
@@ -15,6 +15,8 @@ import {
   answerText,
   cookingReducer,
   ingredientLine,
+  scalingFor,
+  servingsOf,
   initialCookingState,
   stepText,
 } from './cookingState';
@@ -34,6 +36,8 @@ export function Cooking({
   onRecipeChange: (recipe: Recipe) => void;
 }) {
   const [state, dispatch] = useReducer(cookingReducer, initialCookingState);
+  // Amounts are stored for the recipe's own servings; the cook's choice scales them.
+  const scaling = useMemo(() => scalingFor(recipe), [recipe]);
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
   const pending = useRef<AbortController | null>(null);
@@ -117,14 +121,14 @@ export function Cooking({
                   {recipe.title}
                 </TextView>
                 <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
-                  {`Ingredients · serves ${recipe.base_servings}`}
+                  {`Ingredients · serves ${servingsOf(recipe)}`}
                 </TextView>
               </div>
               <ul className="recipe-list recipe-list--tight">
                 {recipe.ingredients.map(ingredient => (
                   <li key={ingredient.id}>
                     <TextView as="p" textStyle={TextStyle.BODY2}>
-                      {ingredientLine(ingredient, unitSystem)}
+                      {ingredientLine(ingredient, unitSystem, scaling)}
                     </TextView>
                   </li>
                 ))}
@@ -148,7 +152,7 @@ export function Cooking({
                       {`${i + 1} · ${stepText(step.title, unitSystem)}`}
                     </TextView>
                     <TextView as="p" textStyle={TextStyle.BODY2}>
-                      {stepText(step.instruction, unitSystem)}
+                      {stepText(step.instruction, unitSystem, scaling)}
                     </TextView>
                   </li>
                 ))}
