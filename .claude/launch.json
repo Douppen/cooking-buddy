@@ -4,8 +4,15 @@
     {
       "name": "server",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "server", "start"],
-      "port": 8787
+      "runtimeArgs": [
+        "--prefix",
+        "server",
+        "start"
+      ],
+      "port": 8787,
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "/Users/simonnars/Downloads/junction-2026-514714-909bfbf794ef.json"
+      }
     }
   ]
 }

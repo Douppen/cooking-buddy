@@ -16,6 +16,11 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   the **most recent recipe** as one row ("Back to your recipe"), so a cook who left cooking
   by accident (system Back) pinches it to return. A new dish simply replaces it on top.
   Older recipes stay saved on the device (for a "previous recipes" list later) but aren't shown.
+- **Servings:** a box at the bottom of home, styled like a list row ("‹ 2 servings ›",
+  "Swipe left or right to change"), 2 by default each time home opens, 1 to 8. Only while
+  it has focus, **swipe right** adds one and **swipe left** takes one away. Scaling the recipe to it in the app is
+  not built yet (see "Servings are the app's job" below), so for now it has no effect. Focus order on home:
+  last recipe, dish field, units switch, servings.
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
   steps** in one list; swiping right again does nothing. **Swipe left** (`prev`) goes back
@@ -29,7 +34,7 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   change, rewrites the affected ingredients and steps, and the answer is labelled "RECIPE
   UPDATED" with what changed (~6–8 s). Both lists show the new recipe; the cook stays on the
   same view. "Do I need X?" answers, and marks X optional when the dish works without it.
-- **Metric or imperial** (a switch row on `/`, kept on the device): every recipe
+- **Metric or imperial** (a small "Imperial units" switch on `/` between the dish field and the servings, label and toggle only, no row box; kept on the device): every recipe
   stays stored in metric; the app shows amounts in oz/lb/tsp/tbsp/cups and converts °C,
   g, ml and cm in step text (`app/src/units.ts`). `/api/ask` gets `unit_system` so answers
   match. Small amounts (salt, spices, leaveners, extracts, and any liquid under 50 ml, e.g. 15 ml oil → 1 tbsp) are stored in `tsp`/`tbsp`, or
@@ -203,6 +208,11 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
 
 ## Porting notes
 
+- Home (`app/src/pages/HomePage.tsx`, 2026-11-14) is built to fit 600×600 with no scrolling:
+  last recipe row, dish field, units switch, servings box. The toolkit's slider `ListItem`
+  hides its title, so the servings box is a toolkit `Container` that takes left/right
+  itself while focused. Native: a focusable row that handles left/right swipes. The units
+  switch is the toolkit `Switch` in a `Container` whose surface only shows when focused.
 - The cooking screen (since 2026-11-14) is two views: ingredients, then all steps, each a
   vertical list. On the web, the toolkit `Pager` slides between them and its focus
   navigation scrolls a focused `ScrollView` about 60 px per up/down swipe, then moves focus

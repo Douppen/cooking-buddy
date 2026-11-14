@@ -37,9 +37,45 @@ body {
 }
 
 .ask-dock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--uit-spacing-small);
   min-inline-size: 0;
   padding: 0 var(--uit-spacing-large) var(--uit-spacing-large);
 }
+
+/* The field (and the servings box on home) take the full width; the units switch doesn't. */
+.ask-dock > :first-child {
+  align-self: stretch;
+}
+
+/* Home: the servings box, laid out like a list row (title, then a hint). */
+.servings-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--uit-spacing-xsmall);
+  padding: var(--uit-spacing-large);
+}
+
+.servings-box p {
+  margin: 0;
+}
+
+/* Home: the units switch between the dish field and the servings, just a label and the
+   toggle, not a list row. Only the toggle is focusable, so its focus surface stays small. */
+.units-row {
+  display: flex;
+  align-items: center;
+  gap: var(--uit-spacing-small);
+  padding-inline-start: var(--uit-spacing-large);
+}
+
+.units-toggle {
+  display: flex;
+  padding: var(--uit-spacing-xsmall);
+}
+
 
 /* Cooking screen: the ingredients / steps pager fills the space; the answer (when there is
    one) and the ask field sit below it, shared by both views. */
