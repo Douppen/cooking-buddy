@@ -1,47 +1,17 @@
-// Smoke test against a running server: node smoke.js [ws://localhost:8787]
-//   npm run smoke -- wss://cook.simonnars.com
-import WebSocket from "ws";
+// Smoke test against a running server: node smoke.js [http://localhost:8787]
+//   npm run smoke -- https://cook.simonnars.com
+const base = process.argv[2] ?? "http://localhost:8787";
 
-const base = process.argv[2] ?? "ws://localhost:8787";
-const httpBase = base.replace(/^ws/, "http");
-// Must be in the deployed ALLOWED_ORIGINS (config/deploy.yml) for prod smoke runs.
-const origin = "http://localhost:5173";
+const check = async (label, path, ok) => {
+  const res = await fetch(`${base}${path}`);
+  const body = await res.text();
+  if (!ok(res, body)) throw new Error(`${label}: ${path} returned ${res.status}`);
+  console.log(`ok  ${label}`);
+};
 
-const up = await fetch(`${httpBase}/up`);
-if (!up.ok) throw new Error(`/up returned ${up.status}`);
-
-const shell = await fetch(`${httpBase}/some/client/route`);
-const html = await shell.text();
-if (!shell.ok || !html.includes('id="root"')) {
-  throw new Error(`app shell not served (status ${shell.status})`);
-}
-
-const open = () => new Promise((resolve, reject) => {
-  const ws = new WebSocket(`${base}/ws?room=TEST42`, { headers: { origin } });
-  ws.once("open", () => resolve(ws));
-  ws.once("error", reject);
-});
-
-const glasses = await open();
-const phone = await open();
-
-const got = new Promise((resolve, reject) => {
-  const timer = setTimeout(() => reject(new Error("phone never got snap")), 3000);
-  phone.on("message", (raw) => {
-    const msg = JSON.parse(raw.toString());
-    if (msg.t === "snap") { clearTimeout(timer); resolve(msg); }
-  });
-});
-glasses.send(JSON.stringify({ t: "snap", question: "is the onion done?" }));
-console.log("phone received:", await got);
-
-const rejected = await new Promise((resolve) => {
-  const ws = new WebSocket(`${base}/ws?room=bad!`, { headers: { origin } });
-  ws.once("error", () => resolve(true));
-  ws.once("open", () => resolve(false));
-});
-if (!rejected) throw new Error("invalid room was accepted");
-
-glasses.close();
-phone.close();
+await check("health", "/up", (res, body) => res.ok && body === "OK");
+await check("app shell", "/", (res, body) => res.ok && body.includes('id="root"'));
+await check("client route falls back to shell", "/some/client/route",
+  (res, body) => res.ok && body.includes('id="root"'));
+await check("missing asset is 404", "/nope.js", (res) => res.status === 404);
 console.log("smoke OK");

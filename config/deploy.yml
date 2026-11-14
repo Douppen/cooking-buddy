@@ -1,5 +1,5 @@
-# Cooking Buddy production deploy. One container serves the glasses web app and the
-# WebSocket relay at cook.simonnars.com.
+# Cooking Buddy production deploy. One container serves the glasses web app (and its
+# API) at cook.simonnars.com.
 #
 # Runs on a SHARED Hetzner VPS next to two other apps, behind the box's single
 # kamal-proxy, which routes by hostname.
@@ -42,12 +42,6 @@ proxy:
     path: /up
     interval: 1
     timeout: 5
-
-env:
-  clear:
-    # Browser origins allowed to open a relay socket. The app itself is same-origin; the
-    # localhost entries cover dev and let `npm run smoke -- wss://cook.simonnars.com` work.
-    ALLOWED_ORIGINS: "https://cook.simonnars.com,http://localhost:5173,http://127.0.0.1:4173"
 
 ssh:
   user: deploy

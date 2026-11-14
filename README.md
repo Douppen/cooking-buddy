@@ -5,21 +5,22 @@ Band. Live at **https://cook.simonnars.com**.
 
 ```
 app/      React + Vite glasses web app (Meta UI Toolkit). Built into static files.
-server/   Node server: serves app/dist, runs the WebSocket relay at /ws, health at /up.
+server/   Node server: serves app/dist, health at /up, API under /api.
 config/   Kamal deploy config (shared Hetzner VPS).
 ```
 
-One container serves everything, so the app, the relay (and later `/api/ask`) share one
-origin.
+One container serves everything, so the app and its API share one origin. The plan is to
+port this to a native Meta glasses app later; see [CLAUDE.md](CLAUDE.md) for what that
+means for how we build.
 
 ## Develop
 
 ```sh
 cd server && npm install && npm start     # :8787 (serves app/dist if built)
-cd app && npm install && npm run dev      # :5173, proxies /ws and /api to :8787
+cd app && npm install && npm run dev      # :5173, proxies /api to :8787
 ```
 
-Smoke test a running server: `cd server && npm run smoke` (or `-- ws://localhost:8787`).
+Smoke test a running server: `cd server && npm run smoke` (or `-- https://cook.simonnars.com`).
 
 ## Deploy
 
@@ -32,8 +33,7 @@ Push to `main` (Markdown-only changes don't deploy). GitHub Actions runs
 Repo secrets: `KAMAL_SSH_PRIVATE_KEY` (the `deploy` user key), `TLS_CERTIFICATE_PEM` and
 `TLS_PRIVATE_KEY_PEM` (Cloudflare origin cert for simonnars.com).
 
-Deploys swap the container, so connected glasses/phones drop and reconnect. Don't deploy
-during the demo.
+Deploys swap the container, so an in-flight request can fail. Don't deploy during the demo.
 
 ### Infra facts
 

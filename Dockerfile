@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY app/ ./
 RUN npm run build
 
-# ---- runtime: Node server (relay + static) ---------------------------------
+# ---- runtime: Node server (static app + API) --------------------------------
 FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     PORT=8787 \
