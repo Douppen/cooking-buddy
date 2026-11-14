@@ -25,7 +25,10 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   "Swipe left or right to change"), 2 by default each time home opens, 1 to 8. Only while
   it has focus, **swipe right** adds one and **swipe left** takes one away. The new recipe is
   scaled to it (see "Servings are the app's job" below). Focus order on home:
-  last recipe, dish field, units switch, servings.
+  last recipe, dish field, units switch, voice switch, servings.
+- **Voice on or off:** a "Voice" switch next to "Imperial units" (same row, kept on the
+  device, on by default). Off: answers on home and while cooking are text only (`speak()` in
+  `app/src/speech.ts` does nothing).
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
   steps** in one list; swiping right again does nothing. **Swipe left** (`prev`) goes back
@@ -224,7 +227,8 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
   last recipe row, dish field, units switch, servings box. The toolkit's slider `ListItem`
   hides its title, so the servings box is a toolkit `Container` that takes left/right
   itself while focused. Native: a focusable row that handles left/right swipes. The units
-  switch is the toolkit `Switch` in a `Container` whose surface only shows when focused.
+  and voice switches are toolkit `Switch`es in `Container`s whose surface only shows when
+  focused. Speech is the browser's `speechSynthesis`; native uses the phone's TTS.
 - The cooking screen (since 2026-11-14) is two views: ingredients, then all steps, each a
   vertical list. On the web, the toolkit `Pager` slides between them and its focus
   navigation scrolls a focused `ScrollView` about 60 px per up/down swipe, then moves focus

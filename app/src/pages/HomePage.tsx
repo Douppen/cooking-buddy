@@ -26,11 +26,15 @@ type Status =
 // The conversation sent back with each request: enough for follow-ups, small enough to send.
 const HISTORY_TURNS = 10;
 
-// The units switch is a label and the toggle, not a list row. Only the toggle is focusable;
+// The units and voice switches are a label and a toggle each, side by side, not list rows. Only the toggle is focusable;
 // the toolkit's surface around it only shows while it has focus.
-const UNITS_TOGGLE_MATERIAL = createDefaultContainerMaterial({
-  config: {alphaForState: state => (state === VisualState.DEFAULT ? 0 : 1)},
-});
+// The toolkit mounts each material on one container only, so each switch gets its own.
+const toggleMaterial = () =>
+  createDefaultContainerMaterial({
+    config: {alphaForState: state => (state === VisualState.DEFAULT ? 0 : 1)},
+  });
+const UNITS_TOGGLE_MATERIAL = toggleMaterial();
+const VOICE_TOGGLE_MATERIAL = toggleMaterial();
 
 // How many servings the new recipe is for: a box like a list row. While it has focus, swipe right
 // (ArrowRight) adds one and swipe left (ArrowLeft) takes one away; elsewhere swipes don't
@@ -50,9 +54,10 @@ function stepServings(servings: number, action: 'next' | 'prev'): number {
 // dinner": a short answer, read aloud, with up to 3 dishes as rows to pinch for the recipe).
 // Follow-ups work ("the second one"): the conversation goes along until a recipe opens. At the top, the most recent
 // recipe, so a cook who left it by accident pinches it to go back. Older recipes stay saved
-// on the device but aren't listed. Between the field and the servings, the units switch.
+// on the device but aren't listed. Between the field and the servings, the units and voice
+// switches (voice off: answers are text only).
 export function HomePage() {
-  const {recipes, saveRecipe, unitSystem, setUnitSystem} = useRecipes();
+  const {recipes, saveRecipe, unitSystem, setUnitSystem, voiceOn, setVoiceOn} = useRecipes();
   const navigate = useNavigate();
   const [dish, setDish] = useState('');
   const [status, setStatus] = useState<Status>({kind: 'idle'});
@@ -181,6 +186,19 @@ export function HomePage() {
                   onClick={toggleUnits}
                 >
                   <Switch checked={imperial} animated />
+                </Container>
+                <TextView as="span" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
+                  Voice
+                </TextView>
+                <Container
+                  role="switch"
+                  aria-checked={voiceOn}
+                  aria-label="Read answers aloud"
+                  material={VOICE_TOGGLE_MATERIAL}
+                  contentClassName="units-toggle"
+                  onClick={() => setVoiceOn(!voiceOn)}
+                >
+                  <Switch checked={voiceOn} animated />
                 </Container>
               </div>
               <Container

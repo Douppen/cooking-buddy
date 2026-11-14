@@ -62,8 +62,8 @@ body {
   margin: 0;
 }
 
-/* Home: the units switch between the dish field and the servings, just a label and the
-   toggle, not a list row. Only the toggle is focusable, so its focus surface stays small. */
+/* Home: the units and voice switches between the dish field and the servings, one row, each
+   just a label and a toggle, not a list row. Only the toggle is focusable, so its focus surface stays small. */
 .units-row {
   display: flex;
   align-items: center;
@@ -74,6 +74,11 @@ body {
 .units-toggle {
   display: flex;
   padding: var(--uit-spacing-xsmall);
+}
+
+/* Room between the units pair and the voice pair on the same row. */
+.units-row > span:not(:first-child) {
+  margin-inline-start: var(--uit-spacing-large);
 }
 
 
