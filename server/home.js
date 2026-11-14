@@ -9,9 +9,13 @@
 //   history: the conversation so far on home (oldest first, up to 10 turns), for follow-ups
 //   ("the second one", "yes").
 // Response:
-//   { kind: "dish", dish, servings, model, ms }
+//   { kind: "dish", dish, servings, cuisine, handover, model, ms }
 //     dish: what to fetch ("lasagna"); servings: the number the cook said ("for 4", "for six
 //     people"), or null. The app sets its servings setting to it: what the cook says wins.
+//     cuisine: "indian" | "chinese" | "italian" | "mexican" | "french" | "japanese" | "thai"
+//     | "other"; the app saves it on the recipe, and that cuisine's cook reads its answers.
+//     handover: what the British chef says when the recipe opens ("Alright, here's your
+//     butter chicken recipe. Now let me hand you over to my expert colleague, Pankaj.").
 //   { kind: "answer", answer, suggestions, model, ms }
 //     answer: 1-3 sentences to show and read aloud; suggestions: up to 3 dish names to offer.
 //   422 { error, not_a_recipe: true } when the request isn't about food ("write me a poem").
@@ -20,6 +24,7 @@
 
 import { z } from "zod";
 import { NotFoodError, sortRequest } from "./ai/generate.js";
+import { handoverLine } from "./ai/personas.js";
 import { MODEL, getClient, withBackup } from "./ai/gemini.js";
 import { createRateLimiter, failureReason, readJsonRequest, sendJson } from "./http.js";
 
@@ -72,8 +77,16 @@ export async function handleHome(req, res) {
     const backup = attempt === 2 ? " (backup request won)" : "";
     if (sorted.kind === "dish") {
       const servings = sorted.servings ? `, ${sorted.servings} servings` : "";
-      console.log(`home: ${said} is the dish "${sorted.dish}"${servings} (${elapsed()} ms)${backup}`);
-      sendJson(res, 200, { kind: "dish", dish: sorted.dish, servings: sorted.servings, model: MODEL, ms: elapsed() });
+      console.log(`home: ${said} is the dish "${sorted.dish}"${servings}, ${sorted.cuisine} (${elapsed()} ms)${backup}`);
+      sendJson(res, 200, {
+        kind: "dish",
+        dish: sorted.dish,
+        servings: sorted.servings,
+        cuisine: sorted.cuisine,
+        handover: handoverLine(sorted.dish, sorted.cuisine),
+        model: MODEL,
+        ms: elapsed(),
+      });
       return;
     }
     console.log(`home: answered ${said} in ${elapsed()} ms${backup}`);

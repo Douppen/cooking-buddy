@@ -31,10 +31,20 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   is fetched, so the cook sees it change. The new recipe is scaled to it (see "Servings are the app's job" below). Focus order on home:
   last recipe, dish field, units switch, voice switch, servings.
 - **Voice on or off:** a "Voice" switch next to "Imperial units" (same row, kept on the
-  device, on by default). On: answers are read aloud by a British chef voice from
-  `POST /api/speak` (MP3, EU). The answer's text waits for its voice (~2 s, "Thinking…"
-  meanwhile) and shows the moment it starts, at most 4 s later; if the voice fails, the
-  device's own voice (`speechSynthesis`) reads it. Off: answers on home and while cooking
+  device, on by default). On: answers are read aloud from `POST /api/speak` (MP3, EU).
+  The answer's text waits for its voice (~2 s, "Thinking…" meanwhile) and shows the moment
+  it starts, at most 4 s later; if the voice fails, the device's own voice
+  (`speechSynthesis`) reads it.
+- **Who's talking: a cook per cuisine.** Home is always the British chef. A dish's cuisine
+  (named by `/api/home`, saved on the recipe as `cuisine`) brings its own cook for that
+  recipe only: every answer, change, error and timer while cooking it is in their voice.
+  When a recipe opens from home, the chef hands over first: "Alright, here's your butter
+  chicken recipe. Now let me hand you over to my expert colleague, Pankaj." (made while the
+  recipe is found, so it plays the moment the recipe opens; said once, not on reload or
+  Back). The cooks: Pankaj (Indian), Uncle Wei (Chinese), Tony (Italian, a heavy-accented
+  New York wise guy), Abuela Rosa (Mexican), Chef Jacques (French), Kenji (Japanese),
+  Auntie Mali (Thai). Any other cuisine: the chef says "Let's get cooking!" and stays.
+  Names, voices and accents: `server/ai/personas.js`. Off: answers on home and while cooking
   are text only (`speak()` in `app/src/speech.ts` does nothing).
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
@@ -152,7 +162,7 @@ Build everything so that port is cheap:
   the recipe. Answers are 1–2 sentences, plain text, meant to be shown and spoken.
 - **The home box, two endpoints:** `POST /api/home` with `{ request, history? }` sorts what
   the cook said (EU, no search, `sortRequest()` in `server/ai/generate.js`): `{ kind:
-  "answer", answer, suggestions }` for food talk, or `{ kind: "dish", dish, servings }` for a
+  "answer", answer, suggestions }` for food talk, or `{ kind: "dish", dish, servings, cuisine, handover }` for a
   named dish, with the servings the cook said (1–8, or null). The app then sends `{ dish }`
   to `POST /api/recipes/generate`, which returns `{ kind: "recipe", recipe, found_online,
   model, ms }`. Two calls so home can show the dish and servings while the recipe comes. Gemini searches the web, picks one well-reviewed
@@ -197,8 +207,15 @@ Build everything so that port is cheap:
   the text word for word). No real person's voice: Google only clones a voice with its
   owner's recorded consent. The server streams Gemini's raw PCM (faster than one call:
   ~1.8 s for a 30-word answer) and encodes it to MP3 (`@breezystack/lamejs`, ~25-35 KB).
-  If Gemini fails or takes over 6 s, Cloud Text-to-Speech reads it with the plain British
-  voice `en-GB-Chirp3-HD-Charon` (`TTS_FALLBACK_VOICE`, `eu-texttospeech.googleapis.com`,
+  **Other cooks for other cuisines** (`server/ai/personas.js`): the request may carry
+  `cuisine` (the recipe's) and `context` (its title); `personaFor()` picks the cuisine's
+  cook, or for older recipes without a cuisine Tony when the title is clearly Italian, else
+  the chef (home sends neither). Each cook is a prebuilt voice plus a style asking for a
+  strong accent and a warm character, and a plain Chirp 3 HD fallback (`en-IN` for Pankaj,
+  `en-US` for the others). Header `x-persona` says who (`chef`, `indian`, …). `/api/home`
+  gives the handover line (`handoverLine()`), which the app preloads in the chef's voice.
+  If Gemini fails or takes over 6 s, Cloud Text-to-Speech reads it with the persona's plain
+  voice (the chef's: `en-GB-Chirp3-HD-Charon`, `TTS_FALLBACK_VOICE`; `eu-texttospeech.googleapis.com`,
   ~1 s; the Cloud Text-to-Speech API is enabled on the project for this). The response
   header `x-voice` says which (`gemini` or `fallback`); `GET /api/status` shows how the
   last one went (`speech.last`).

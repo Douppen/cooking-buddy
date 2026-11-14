@@ -16,6 +16,8 @@ const WAIT_FOR_VOICE_MS = 4_000;
 // Short fixed phrases ("Recipe updated.") are kept, so they play at once next time.
 const CACHE_MAX_CHARS = 40;
 const CACHE_SIZE = 10;
+// The recipe title goes along for older recipes without a cuisine (the server allows 600).
+const CONTEXT_MAX_CHARS = 600;
 
 let voiceOn = true;
 // Off for the rest of the visit once the server says it has no voice (503).
@@ -24,10 +26,25 @@ let current = 0; // id of the latest speak(); older ones stop when it changes
 let fetching: AbortController | null = null;
 let playing: {audio: HTMLAudioElement; url: string} | null = null;
 const cache = new Map<string, Blob>();
+const preloading = new Map<string, Promise<Blob>>();
 
 export function setVoiceOn(on: boolean): void {
   voiceOn = on;
   if (!on) stopSpeaking();
+}
+
+/**
+ * Whose voice: a recipe's cuisine picks its cook (Pankaj for 'indian', …); `context` (the
+ * recipe title) covers older recipes without a cuisine. Nothing, as on home: the British chef.
+ */
+export interface Voice {
+  cuisine?: string | null;
+  context?: string;
+}
+
+/** The voice for answers about this recipe: its cuisine's cook. */
+export function voiceOf(recipe: {cuisine?: string | null; title: string}): Voice {
+  return {cuisine: recipe.cuisine ?? null, context: recipe.title};
 }
 
 /**
@@ -36,7 +53,7 @@ export function setVoiceOn(on: boolean): void {
  * playing, when the device's voice takes over, at once when voice is off, or after
  * WAIT_FOR_VOICE_MS at the latest (the audio then still plays when it arrives). Never rejects.
  */
-export function speak(text: string): Promise<void> {
+export function speak(text: string, voice: Voice = {}): Promise<void> {
   if (!voiceOn || !text.trim()) return Promise.resolve();
   stopSpeaking();
   const id = current;
@@ -51,7 +68,7 @@ export function speak(text: string): Promise<void> {
       started();
       return;
     }
-    serverAudio(text)
+    serverAudio(text, voice)
       .then(blob => {
         if (id !== current) return started();
         const url = URL.createObjectURL(blob);
@@ -74,6 +91,25 @@ export function speak(text: string): Promise<void> {
   });
 }
 
+/**
+ * Fetches the audio for `text` now, to play later with speak(text, voice) at once: the
+ * chef's handover is made while the recipe is still being found. Not cancelled by
+ * stopSpeaking().
+ */
+export function prefetchSpeech(text: string, voice: Voice = {}): void {
+  if (!voiceOn || !serverVoice || !text.trim()) return;
+  const key = keyOf(text, voice);
+  if (cache.has(key) || preloading.has(key)) return;
+  const loading = requestAudio(text, voice, AbortSignal.timeout(SERVER_TIMEOUT_MS))
+    .then(blob => {
+      remember(key, blob);
+      return blob;
+    })
+    .finally(() => preloading.delete(key));
+  loading.catch(() => {}); // speak() falls back on its own if it was waiting for this
+  preloading.set(key, loading);
+}
+
 export function stopSpeaking(): void {
   current += 1;
   fetching?.abort();
@@ -82,26 +118,39 @@ export function stopSpeaking(): void {
   if (typeof window.speechSynthesis !== 'undefined') window.speechSynthesis.cancel();
 }
 
-async function serverAudio(text: string): Promise<Blob> {
-  const cached = cache.get(text);
-  if (cached) return cached;
+// The same words sound different in another voice.
+function keyOf(text: string, voice: Voice): string {
+  return `${voice.cuisine ?? ''}\n${voice.context ?? ''}\n${text}`;
+}
+
+function remember(key: string, blob: Blob): void {
+  if (cache.size >= CACHE_SIZE) cache.delete(cache.keys().next().value as string);
+  cache.set(key, blob);
+}
+
+async function serverAudio(text: string, voice: Voice): Promise<Blob> {
+  const key = keyOf(text, voice);
+  const ready = cache.get(key) ?? preloading.get(key);
+  if (ready) return ready;
   const controller = new AbortController();
   fetching = controller;
+  const blob = await requestAudio(text, voice, AbortSignal.any([controller.signal, AbortSignal.timeout(SERVER_TIMEOUT_MS)]));
+  if (fetching === controller) fetching = null;
+  if (text.length <= CACHE_MAX_CHARS) remember(key, blob);
+  return blob;
+}
+
+async function requestAudio(text: string, voice: Voice, signal: AbortSignal): Promise<Blob> {
   const res = await fetch('/api/speak', {
     method: 'POST',
     headers: {'content-type': 'application/json'},
-    body: JSON.stringify({text}),
-    signal: AbortSignal.any([controller.signal, AbortSignal.timeout(SERVER_TIMEOUT_MS)]),
+    // The server picks the voice: the cuisine's cook, else the chef.
+    body: JSON.stringify({text, cuisine: voice.cuisine ?? undefined, context: voice.context?.slice(0, CONTEXT_MAX_CHARS)}),
+    signal,
   });
   if (res.status === 503) serverVoice = false;
   if (!res.ok) throw new Error(`/api/speak answered ${res.status}`);
-  const blob = await res.blob();
-  if (fetching === controller) fetching = null;
-  if (text.length <= CACHE_MAX_CHARS) {
-    if (cache.size >= CACHE_SIZE) cache.delete(cache.keys().next().value as string);
-    cache.set(text, blob);
-  }
-  return blob;
+  return res.blob();
 }
 
 function stopPlaying(): void {

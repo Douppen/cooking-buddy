@@ -93,6 +93,7 @@ export async function handleAsk(req, res) {
               previous: current,
               source: current.source,
               servings: keptServings,
+              cuisine: current.cuisine,
             })
           : servings
             ? { ...current, servings }

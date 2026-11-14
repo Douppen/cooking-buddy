@@ -48,6 +48,9 @@ export const StepSchema = z.object({
     .describe("Active cooking timer in seconds"),
 });
 
+// Cuisines with their own cook's voice (ai/personas.js); anything else is "other".
+export const CUISINES = ["indian", "chinese", "italian", "mexican", "french", "japanese", "thai", "other"];
+
 export const RecipeSchema = z.object({
   recipe_id: z.string(),
   title: z.string(),
@@ -75,6 +78,11 @@ export const RecipeSchema = z.object({
     .nullable()
     .default(null)
     .describe("The website the recipe was found on with Google Search (e.g. 'bbcgoodfood.com'), or null"),
+  cuisine: z
+    .enum(CUISINES)
+    .nullable()
+    .default(null)
+    .describe("The dish's cuisine, named by /api/home: picks the cook's voice (ai/personas.js); null on older recipes"),
 });
 
 // What the AI writes when it creates or edits a recipe: the recipe without the fields the
@@ -102,7 +110,7 @@ export const RecipeDraftSchema = z.object({
  * rename what it didn't touch), and sets the server-owned fields. Throws if the result
  * isn't a valid Recipe.
  */
-export function toRecipe(draft, { recipe_id, origin, edits, previous, source = null, servings = null }) {
+export function toRecipe(draft, { recipe_id, origin, edits, previous, source = null, servings = null, cuisine = null }) {
   const parsed = tidy(RecipeDraftSchema.parse(draft));
   const previousIds = new Map((previous?.ingredients ?? []).map((ing) => [ing.name.toLowerCase(), ing.id]));
   const used = new Set();
@@ -116,7 +124,7 @@ export function toRecipe(draft, { recipe_id, origin, edits, previous, source = n
     return { id, ...ing };
   });
   const steps = parsed.steps.map((step, index) => ({ index, ...step }));
-  return RecipeSchema.parse({ ...parsed, recipe_id, ingredients, steps, origin, edits, source, servings });
+  return RecipeSchema.parse({ ...parsed, recipe_id, ingredients, steps, origin, edits, source, servings, cuisine });
 }
 
 // g/ml rounded as recipes write them; under 50 ml in spoons ("15 ml" → "1 tbsp"); spoons to

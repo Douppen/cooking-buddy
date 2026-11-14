@@ -18,7 +18,7 @@
 // writeOffline(): the fallback when the search call fails: the classic recipe from Gemini's
 //   own knowledge, in the EU without search.
 
-import { toRecipe } from "../models/domain.js";
+import { CUISINES, toRecipe } from "../models/domain.js";
 import { MODEL, SEARCH_MODEL } from "./gemini.js";
 import { RECIPE_DRAFT_JSON_SCHEMA, RECIPE_WRITING_RULES, generatedRecipeId } from "./recipeFormat.js";
 
@@ -30,6 +30,7 @@ const SERVINGS_RULE =
 const SORT_INSTRUCTION = [
   "You are Cooking Buddy, a cooking assistant on smart glasses. Sort what the cook says.",
   "dish: the dish to cook, only when the cook names one specific dish ('lasagna', 'chicken curry', 'a recipe for banana bread') or picks one that Cooking Buddy suggested earlier ('the second one', 'let's do the falafel'), or agrees to the dish Cooking Buddy just offered ('yes', 'do it', 'let's go', 'sounds good', 'sure, that one', 'perfect'): then dish is that offered dish. If Cooking Buddy offered several and the cook only agrees without saying which, leave dish empty and ask which one. Write it the way the cook or Cooking Buddy wrote it, without adding words, plus any wish they gave for it ('vegetarian lasagna'). Otherwise leave it empty.",
+  "cuisine: when dish is set, the cuisine the dish comes from: indian (butter chicken, dal, biryani), chinese (kung pao chicken, fried rice, dumplings), italian (lasagna, risotto, carbonara), mexican (tacos, enchiladas, mole), french (coq au vin, ratatouille, crêpes), japanese (ramen, katsu curry, teriyaki), thai (pad thai, green curry, tom yum); anything else, or a dish of no particular cuisine, is other.",
   "servings: when the cook says how many people or servings to cook for, now or earlier in this conversation ('lasagna for 4', 'yes, for six people', 'enough for two', 'just me' = 1), that number; otherwise 0. Leave the number out of dish.",
   "A cuisine, a meal, an ingredient or a kind of dish is not a dish name, even when the cook says 'recipe', 'give me' or 'make me': 'a simple middle eastern recipe', 'an easy dinner recipe', 'chicken recipe', 'something quick with chicken', 'a pasta dish' all leave dish empty. The test: could you search for that exact dish by its name?",
   "intent: 'recipe' when dish is set; 'chat' for anything else about food, cooking, ingredients or drinks (ideas, what to make with what they have, advice, a cooking question, a follow-up that changes or narrows earlier ideas); 'not_food' for anything that isn't about food, cooking or drinks, even if phrased as a question: sports, news, weather, people, homework, code, jokes, gibberish, or something that isn't safe to eat.",
@@ -71,6 +72,7 @@ const SORT_JSON_SCHEMA = {
     dish: { type: "string", description: "The dish the cook named or picked, as written, or empty" },
     intent: { type: "string", enum: ["recipe", "chat", "not_food"] },
     servings: { type: "integer", description: "How many people or servings the cook said, or 0" },
+    cuisine: { type: "string", enum: CUISINES, description: "When dish is set: the dish's cuisine" },
     answer: { type: "string", description: "Unless not_food: 1-3 short sentences, at most 30 words, read aloud" },
     suggestions: {
       type: "array",
@@ -79,7 +81,7 @@ const SORT_JSON_SCHEMA = {
     },
   },
   required: ["dish", "intent"],
-  propertyOrdering: ["dish", "intent", "servings", "answer", "suggestions"],
+  propertyOrdering: ["dish", "intent", "servings", "cuisine", "answer", "suggestions"],
 };
 
 const ONLINE_JSON_SCHEMA = {
@@ -94,7 +96,7 @@ const ONLINE_JSON_SCHEMA = {
 
 /**
  * @typedef {{ request: string, history?: Array<{ role: "cook" | "buddy", text: string }> }} HomeInput
- * @typedef {{ kind: "dish", dish: string, servings: number | null }
+ * @typedef {{ kind: "dish", dish: string, servings: number | null, cuisine: string }
  *         | { kind: "answer", answer: string, suggestions: string[] }} Sorted
  * @typedef {{ recipe: object, searched: boolean, queries: string[] }} Found
  *   searched is false when Gemini answered without actually searching (no source then)
@@ -130,7 +132,10 @@ export async function sortRequest(ai, input, abortSignal) {
 export function toSorted(parsed, input) {
   if (parsed.intent === "not_food") throw new NotFoodError(input.request);
   const dish = String(parsed.dish ?? "").trim();
-  if (dish && namedDish(dish, input)) return { kind: "dish", dish, servings: servingsOf(parsed.servings) };
+  if (dish && namedDish(dish, input)) {
+    const cuisine = CUISINES.includes(parsed.cuisine) ? parsed.cuisine : "other";
+    return { kind: "dish", dish, servings: servingsOf(parsed.servings), cuisine };
+  }
   const answer = String(parsed.answer ?? "").trim();
   if (!answer) throw new Error(`no answer (intent ${JSON.stringify(parsed.intent)}, dish ${JSON.stringify(dish)})`);
   const suggestions = (Array.isArray(parsed.suggestions) ? parsed.suggestions : [])

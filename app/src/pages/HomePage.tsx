@@ -15,7 +15,7 @@ import {useNavigate} from 'react-router-dom';
 import {ServerMessageError, askHome, findRecipe, type Turn} from '../api';
 import {useRecipes} from '../RecipesContext';
 import {AskField, SEND_HINT} from '../AskField';
-import {speak, stopSpeaking} from '../speech';
+import {prefetchSpeech, speak, stopSpeaking} from '../speech';
 
 type Status =
   | {kind: 'idle'}
@@ -123,7 +123,8 @@ export function HomePage() {
               -HISTORY_TURNS,
             ),
           );
-          // "Thinking…" stays until the voice starts, then the answer shows with it.
+          // "Thinking…" stays until the voice starts, then the answer shows with it. Home
+          // always talks with the British chef.
           return speak(reply.answer).then(() => {
             if (signal.aborted) return;
             setStatus({kind: 'answered', answer: reply.answer, suggestions: reply.suggestions});
@@ -133,14 +134,18 @@ export function HomePage() {
         const chosen = reply.servings ? clampServings(reply.servings) : servings;
         setServings(chosen);
         setStatus({kind: 'fetching', dish: reply.dish, servings: chosen});
+        // The chef's handover ("…let me hand you over to my expert colleague, Pankaj") is made
+        // while the recipe is found, so it plays the moment the recipe opens.
+        if (reply.handover) prefetchSpeech(reply.handover);
         return findRecipe(reply.dish, signal).then(recipe => {
           if (signal.aborted) return;
-          // The recipe keeps its source's servings; the cook's choice is saved next to them.
-          saveRecipe({...recipe, servings: chosen});
+          // The recipe keeps its source's servings; the cook's choice is saved next to them,
+          // and so is its cuisine, whose cook reads every answer for it.
+          saveRecipe({...recipe, servings: chosen, cuisine: reply.cuisine});
           setHistory([]);
           setStatus({kind: 'idle'});
           // Push, so Back from cooking returns here, with this recipe on top.
-          navigate(`/cook/${recipe.recipe_id}`);
+          navigate(`/cook/${recipe.recipe_id}`, {state: {greeting: reply.handover}});
         });
       })
       .catch(err => {

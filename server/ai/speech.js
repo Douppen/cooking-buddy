@@ -6,22 +6,21 @@
 // 1.5-2 s for a 30-word answer. Gemini sends raw audio (16-bit PCM, 24 kHz), so the server
 // encodes it to MP3: ~25-35 KB instead of ~0.3 MB.
 //
-// If Gemini fails or is slow, Google Cloud Text-to-Speech reads it with a plain British
+// Who speaks: the British chef on home, and per recipe its cuisine's cook (ai/personas.js:
+// Pankaj, Uncle Wei, Tony, Abuela Rosa, Chef Jacques, Kenji, Auntie Mali).
+//
+// If Gemini fails or is slow, Google Cloud Text-to-Speech reads it with the persona's plain
 // Chirp 3 HD voice (eu-texttospeech.googleapis.com, about 1 s; the project needs the Cloud
-// Text-to-Speech API enabled). Both are configurable:
-//   TTS_MODEL, TTS_VOICE, TTS_STYLE        the Gemini voice
-//   TTS_FALLBACK_VOICE, TTS_FALLBACK_HOST  the plain voice
+// Text-to-Speech API enabled). Configurable: TTS_MODEL, TTS_FALLBACK_HOST; the chef's
+// TTS_VOICE, TTS_STYLE, TTS_FALLBACK_VOICE.
 
 import { Mp3Encoder } from "@breezystack/lamejs";
 import { GoogleAuth } from "google-auth-library";
 import { LOCATION, loadCredentials } from "./gemini.js";
+import { PERSONAS } from "./personas.js";
 
 export const TTS_MODEL = process.env.TTS_MODEL ?? "gemini-3.8-flash-lite-tts";
-export const TTS_VOICE = process.env.TTS_VOICE ?? "Algenib";
-export const TTS_STYLE =
-  process.env.TTS_STYLE ??
-  "An energetic, passionate British chef, warm but a bit cheeky, with a deep bass voice and a British accent.";
-export const TTS_FALLBACK_VOICE = process.env.TTS_FALLBACK_VOICE ?? "en-GB-Chirp3-HD-Charon";
+
 const TTS_FALLBACK_HOST = process.env.TTS_FALLBACK_HOST ?? "eu-texttospeech.googleapis.com";
 
 const GEMINI_TIMEOUT_MS = 6_000;
@@ -36,7 +35,7 @@ const AIPLATFORM_HOST =
   LOCATION === "eu" || LOCATION === "us" ? `aiplatform.${LOCATION}.rep.googleapis.com` : `${LOCATION}-aiplatform.googleapis.com`;
 
 let auth; // GoogleAuth, null without credentials, undefined before first use
-let lastSpeech = null; // { ok, voice, ms, at, chars, error? }
+let lastSpeech = null; // { ok, persona, voice, ms, at, chars, error? }
 
 function getAuth() {
   if (auth !== undefined) return auth;
@@ -57,18 +56,20 @@ export function speechConfigured() {
 }
 
 /**
- * MP3 audio of `text` read aloud: the Gemini chef voice, or the plain voice if that fails.
- * Returns { audio: Buffer, voice: "gemini" | "fallback" }. Throws when both fail.
+ * MP3 audio of `text` read aloud by `persona` (a key of PERSONAS): its Gemini voice, or its
+ * plain voice if that fails. Returns { audio: Buffer, voice: "gemini" | "fallback" }.
+ * Throws when both fail.
  */
-export async function synthesize(text) {
+export async function synthesize(text, persona = "chef") {
+  const { voice, style, fallback } = PERSONAS[persona] ?? PERSONAS.chef;
   const started = performance.now();
   const at = new Date().toISOString();
   const done = (entry) => {
-    lastSpeech = { ...entry, ms: Math.round(performance.now() - started), at, chars: text.length };
+    lastSpeech = { ...entry, persona, ms: Math.round(performance.now() - started), at, chars: text.length };
   };
   let geminiError;
   try {
-    const audio = await geminiSpeech(text);
+    const audio = await geminiSpeech(text, voice, style);
     done({ ok: true, voice: "gemini" });
     return { audio, voice: "gemini" };
   } catch (err) {
@@ -76,7 +77,7 @@ export async function synthesize(text) {
     console.error("speech: Gemini voice failed, using the plain voice:", geminiError);
   }
   try {
-    const audio = await plainSpeech(text);
+    const audio = await plainSpeech(text, fallback);
     done({ ok: true, voice: "fallback", error: `gemini: ${geminiError}`.slice(0, 300) });
     return { audio, voice: "fallback" };
   } catch (err) {
@@ -88,7 +89,7 @@ export async function synthesize(text) {
 
 // Streams the audio (server-sent events of raw PCM chunks) and collects it: measured ~0.4 s
 // faster in total than one generateContent call (1.5 s vs 1.9 s for a 30-word answer).
-async function geminiSpeech(text) {
+async function geminiSpeech(text, voice, style) {
   const client = await getAuth().getClient();
   const { token } = await client.getAccessToken();
   const { project_id } = loadCredentials();
@@ -98,8 +99,8 @@ async function geminiSpeech(text) {
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({
       // The style goes beside the text, not in it: the model reads the text word for word.
-      contents: [{ role: "user", parts: [{ text, speechMetadata: { style: TTS_STYLE } }] }],
-      generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { voice: TTS_VOICE } } },
+      contents: [{ role: "user", parts: [{ text, speechMetadata: { style } }] }],
+      generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { voice } } },
     }),
     signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
   });
@@ -135,7 +136,7 @@ async function geminiSpeech(text) {
   return toMp3(pcmOf(Buffer.concat(chunks), mimeType));
 }
 
-async function plainSpeech(text) {
+async function plainSpeech(text, fallbackVoice) {
   const client = await getAuth().getClient();
   const { project_id } = loadCredentials();
   const response = await client.request({
@@ -144,7 +145,7 @@ async function plainSpeech(text) {
     headers: { "x-goog-user-project": project_id },
     data: {
       input: { text },
-      voice: { languageCode: TTS_FALLBACK_VOICE.split("-").slice(0, 2).join("-"), name: TTS_FALLBACK_VOICE },
+      voice: { languageCode: fallbackVoice.split("-").slice(0, 2).join("-"), name: fallbackVoice },
       audioConfig: { audioEncoding: "MP3" },
     },
     timeout: FALLBACK_TIMEOUT_MS,
@@ -195,9 +196,7 @@ export function speechStatus() {
   return {
     configured: speechConfigured(),
     model: TTS_MODEL,
-    voice: TTS_VOICE,
-    style: TTS_STYLE,
-    fallback_voice: TTS_FALLBACK_VOICE,
+    personas: PERSONAS,
     last: lastSpeech,
   };
 }

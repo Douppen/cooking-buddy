@@ -36,6 +36,8 @@ export interface Recipe {
   origin?: 'library' | 'generated';
   /** Short notes on changes the AI made for this cook, oldest first. */
   edits?: string[];
+  /** The dish's cuisine from askHome() ('indian', 'chinese', …, 'other'): its cook reads the answers. */
+  cuisine?: string | null;
   [field: string]: unknown;
 }
 
@@ -70,7 +72,7 @@ export interface Turn {
  * or an answer with dishes to offer.
  */
 export type HomeReply =
-  | {kind: 'dish'; dish: string; servings: number | null}
+  | {kind: 'dish'; dish: string; servings: number | null; cuisine: string | null; handover: string | null}
   | {kind: 'answer'; answer: string; suggestions: string[]};
 
 /**
@@ -87,7 +89,9 @@ export async function askHome(request: string, history: Turn[], signal: AbortSig
   }
   if (body.kind !== 'dish' || typeof body.dish !== 'string') throw new Error('No dish in the reply');
   const servings = typeof body.servings === 'number' && body.servings >= 1 ? body.servings : null;
-  return {kind: 'dish', dish: body.dish, servings};
+  const cuisine = typeof body.cuisine === 'string' ? body.cuisine : null;
+  const handover = typeof body.handover === 'string' && body.handover ? body.handover : null;
+  return {kind: 'dish', dish: body.dish, servings, cuisine, handover};
 }
 
 /** A real recipe from the web for a dish from askHome(), in our format. */

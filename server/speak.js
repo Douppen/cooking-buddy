@@ -1,15 +1,23 @@
 // POST /api/speak: an answer read aloud, for the glasses' speaker.
 //
-// Request (JSON):  { text: "Try egg fried rice or a shakshuka." }   (up to 600 characters)
-// Response:        200 audio/mpeg (MP3); header x-voice: "gemini" (the chef voice) or
-//                  "fallback" (the plain voice, used when Gemini failed)
-//                  503 { error } when speech isn't configured, 502 { error } when Google fails
+// Request (JSON):  { text: "Add the cream now.", cuisine?: "indian", context?: "Butter Chicken" }
+//   text: what to say (up to 600 characters). cuisine: the recipe's cuisine (recipe.cuisine,
+//   from /api/home), whose cook reads it (ai/personas.js: "indian" is Pankaj). context: the
+//   recipe title, for older recipes without a cuisine (Italian titles get Tony). Neither (as
+//   on home): the British chef.
+// Response:        200 audio/mpeg (MP3); headers x-persona: "chef" | "indian" | ..., and
+//                  x-voice: "gemini" (the character) or "fallback" (a plain voice, when
+//                  Gemini failed). 503 { error } when speech isn't configured, 502 { error }
+//                  when Google fails.
 //
-// The app shows the answer first (from /api/home or /api/ask), then fetches this and plays it;
-// if it fails, the app falls back to the device's own voice. The native app plays the same MP3.
+// The app fetches this as soon as it has an answer and shows the answer when its voice
+// starts; if it fails, the app falls back to the device's own voice. The native app plays
+// the same MP3.
 
 import { z } from "zod";
+import { personaFor } from "./ai/personas.js";
 import { speechConfigured, synthesize } from "./ai/speech.js";
+import { CUISINES } from "./models/domain.js";
 import { createRateLimiter, readJsonRequest, sendJson } from "./http.js";
 
 const MAX_BODY_BYTES = 4 * 1024;
@@ -18,6 +26,8 @@ const allowRequest = createRateLimiter(40);
 
 export const SpeakRequestSchema = z.object({
   text: z.string().trim().min(1).max(600),
+  cuisine: z.enum(CUISINES).nullish(),
+  context: z.string().trim().max(600).optional(),
 });
 
 export async function handleSpeak(req, res) {
@@ -36,8 +46,9 @@ export async function handleSpeak(req, res) {
 
   const started = performance.now();
   try {
-    const { audio, voice } = await synthesize(request.text);
-    console.log(`speak: ${request.text.length} chars in ${Math.round(performance.now() - started)} ms, ${Math.round(audio.length / 1024)} KB, ${voice} voice`);
+    const persona = personaFor(request.cuisine, request.context);
+    const { audio, voice } = await synthesize(request.text, persona);
+    console.log(`speak: ${request.text.length} chars in ${Math.round(performance.now() - started)} ms, ${Math.round(audio.length / 1024)} KB, ${persona} (${voice} voice)`);
     res
       .writeHead(200, {
         "content-type": "audio/mpeg",
@@ -45,6 +56,7 @@ export async function handleSpeak(req, res) {
         "cache-control": "no-store",
         // "gemini" (the chef) or "fallback" (the plain voice, when Gemini failed)
         "x-voice": voice,
+        "x-persona": persona,
       })
       .end(audio);
   } catch (err) {

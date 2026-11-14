@@ -10,6 +10,7 @@ import { HomeRequestSchema } from "./home.js";
 import { NotFoodError, namedDish, sourceOf, toFound, toSorted } from "./ai/generate.js";
 import { recipeContext, toAnswer, toTimer } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
+import { handoverLine, personaFor } from "./ai/personas.js";
 
 // A fixed test recipe; the app itself has no built-in recipes (the AI writes them).
 const recipe = RecipeSchema.parse(
@@ -303,10 +304,11 @@ test("the home box sorts replies: a named dish, an answer with suggestions, or n
   assert.deepEqual(answer, { kind: "answer", answer: "Try a curry.", suggestions: ["Chicken curry", "Dal", "Stir-fry"] });
   assert.throws(() => toSorted({ dish: "", intent: "not_food" }, input), NotFoodError);
   assert.throws(() => toSorted({ dish: "", intent: "chat", answer: "" }, input)); // no answer
-  assert.deepEqual(toSorted({ dish: "Lasagna", intent: "recipe", servings: 0 }, { request: "lasagna" }), {
+  assert.deepEqual(toSorted({ dish: "Lasagna", intent: "recipe", servings: 0, cuisine: "italian" }, { request: "lasagna" }), {
     kind: "dish",
     dish: "Lasagna",
     servings: null,
+    cuisine: "italian",
   });
   // What the cook says about servings comes along with the dish, within 1-8.
   assert.equal(toSorted({ dish: "Lasagna", intent: "recipe", servings: 4 }, { request: "lasagna for 4" }).servings, 4);
@@ -395,4 +397,30 @@ test("timers the cook asks for", () => {
   assert.equal(toAnswer({ change_summary: "", servings: 0, timer: { action: "cancel", label: "" }, answer: "" }).answer, "Timers stopped.");
   const plain = toAnswer({ change_summary: "", servings: 0, timer: { action: "start", minutes: 1.5, label: "" }, answer: "" });
   assert.equal(plain.answer, "Timer: 1 min 30 s.");
+});
+
+test("each recipe's cuisine picks its cook; home and other cuisines keep the British chef", () => {
+  assert.equal(personaFor("indian", "Butter Chicken"), "indian");
+  assert.equal(personaFor("chinese"), "chinese");
+  assert.equal(personaFor("other", "Spaghetti Carbonara"), "chef"); // the cuisine wins over the title
+  assert.equal(personaFor(undefined), "chef"); // home sends no cuisine
+  // Older recipes without a cuisine: an Italian title still gets Tony; shared ingredients don't count.
+  assert.equal(personaFor(null, "Spaghetti Carbonara"), "italian");
+  assert.equal(personaFor(null, "Caesar Salad with parmesan"), "chef");
+  assert.equal(
+    handoverLine("butter chicken", "indian"),
+    "Alright, here's your butter chicken recipe. Now let me hand you over to my expert colleague, Pankaj.",
+  );
+  assert.equal(handoverLine("moussaka", "other"), "Alright, here's your moussaka recipe. Let's get cooking!");
+});
+
+test("the home box names a dish's cuisine; an unknown one is other", () => {
+  const input = { request: "butter chicken for 4", history: [] };
+  assert.deepEqual(toSorted({ intent: "recipe", dish: "butter chicken", servings: 4, cuisine: "indian" }, input), {
+    kind: "dish",
+    dish: "butter chicken",
+    servings: 4,
+    cuisine: "indian",
+  });
+  assert.equal(toSorted({ intent: "recipe", dish: "butter chicken", cuisine: "martian" }, input).cuisine, "other");
 });
