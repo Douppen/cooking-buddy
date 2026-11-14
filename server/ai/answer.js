@@ -31,6 +31,7 @@ const SYSTEM_INSTRUCTION = [
   "- Return the whole updated recipe in `recipe` and a few words in `change_summary`, e.g. 'Swapped butter for olive oil'. Leave `answer` empty: the app says 'Recipe updated' itself.",
   "When the cook tells you to cook for a different number of people or servings ('make it for 6', 'scale it to 2 servings', 'double it' = twice the servings now, 'halve it'; a question like 'can I make it for 6?' only gets an answer, as above), set `servings` to the new number and leave out `recipe` (the app scales the amounts itself), with a few words in `change_summary`, e.g. 'Scaled to 6 servings'. Otherwise set `servings` to 0.",
   "Timers: when the cook asks for one ('set a timer for 10 minutes', 'time the pasta', 'start a timer for this step', 'remind me in 5 minutes'), set timer.action to 'start', timer.minutes to what they said or else the time in the recipe step they mean (the lower end of a range, e.g. 'Bake 10-12 min' = 10), and timer.label to one or two words for what it times ('Pasta', 'Sauce', 'Oven'; 'Timer' if nothing fits). 'Stop the timer', 'cancel the pasta timer': timer.action 'cancel' with that label ('' for all timers). Leave the recipe as it is. Otherwise timer.action is 'none'.",
+  "Shopping list: when the cook asks to send the ingredients or the shopping list to their phone ('send me the shopping list', 'send the ingredients to my phone', 'I need to go shopping, send me what to buy'), set send_list to true and leave the recipe as it is. Otherwise false.",
   "For ordinary questions, write `answer`, leave out `recipe` and set `change_summary` to an empty string.",
   "",
   RECIPE_WRITING_RULES,
@@ -58,11 +59,12 @@ const RESPONSE_JSON_SCHEMA = {
       required: ["action"],
       propertyOrdering: ["action", "minutes", "label"],
     },
+    send_list: { type: "boolean", description: "The cook asked to send the shopping list to their phone" },
     answer: { type: "string", description: "For a question: one or two short sentences, read aloud. Empty when the recipe changed" },
     recipe: { ...RECIPE_DRAFT_JSON_SCHEMA, description: "The whole updated recipe, only if it changed" },
   },
-  required: ["change_summary", "servings", "timer", "answer"],
-  propertyOrdering: ["change_summary", "servings", "timer", "answer", "recipe"],
+  required: ["change_summary", "servings", "timer", "send_list", "answer"],
+  propertyOrdering: ["change_summary", "servings", "timer", "send_list", "answer", "recipe"],
 };
 
 /**
@@ -158,6 +160,10 @@ export function toAnswer(parsed) {
   const servings = Number.isFinite(asked) && asked >= 1 ? Math.min(asked, MAX_SERVINGS) : null;
   const draft = parsed.recipe && changeSummary ? parsed.recipe : null;
   const timer = toTimer(parsed.timer);
+  // Sending the list: ask.js sends it and answers.
+  if (parsed.send_list === true && !draft && !servings && !timer) {
+    return { answer: "", changeSummary: "", draft: null, servings: null, timer: null, sendList: true };
+  }
   if (timer && !draft && !servings) {
     return { answer: timerAnswer(timer), changeSummary: "", draft: null, servings: null, timer };
   }

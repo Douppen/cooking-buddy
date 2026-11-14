@@ -72,6 +72,12 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   with Voice off) and then "Time's up! Pasta timer is done." said.
   Timers live on the cooking screen only (leaving it stops them). On home, a timer request
   gets "Timers work once a recipe is open…" (not the not-food message).
+- **"Send the shopping list to my phone"** (while cooking): `/api/ask` posts the ingredient
+  list, scaled to the servings and in the cook's units, as a push notification through
+  ntfy (`server/phone.js`, https://ntfy.sh, free, no account) and answers "Sent the shopping
+  list to your phone." The phone runs the ntfy app subscribed to the topic `NTFY_TOPIC` in
+  `config/deploy.yml` (hard to guess: anyone who knows it can read the lists; ntfy.sh is a
+  third party outside the EU, fine for a shopping list).
 - **A command ("swap the butter for oil", "leave out the carrots", "make it vegetarian") or
   "I don't have X" edits the recipe**. A question or wish ("can I swap the butter?", "do I
   need eggs?", "I'm watching my blood pressure, can I…") only gets an answer that suggests

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { cleanAmount, cleanAmountsInText, cleanCount, cleanSpoon, convertUnitSystem, scaleIngredients, spoons, toCelsiusInText } from "./scaling.js";
 import { RecipeSchema, decodeEntities, toRecipe } from "./models/domain.js";
+import { shoppingList } from "./phone.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
 import { HomeRequestSchema } from "./home.js";
@@ -425,4 +426,14 @@ test("the home box names a dish's cuisine; an unknown one is other", () => {
     cuisine: "indian",
   });
   assert.equal(toSorted({ intent: "recipe", dish: "butter chicken", cuisine: "martian" }, input).cuisine, "other");
+});
+
+test("the shopping list for the phone: scaled, in the cook's units", () => {
+  const list = shoppingList(recipe, 2, "metric");
+  assert.equal(list.title, "Buttermilk Pancakes, 2 servings");
+  assert.match(list.message, /^• 125 g Plain flour$/m);
+  assert.match(list.message, /^• 15 g Butter, melted$/m);
+  assert.match(shoppingList(recipe, 4, "imperial").message, /^• 2 cups Buttermilk$/m);
+  const ask = toAnswer({ change_summary: "", servings: 0, timer: { action: "none" }, send_list: true, answer: "" });
+  assert.equal(ask.sendList, true);
 });
