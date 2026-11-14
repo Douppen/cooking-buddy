@@ -5,7 +5,7 @@
 // Request (JSON):  { request: "carbonara for 4", servings?: 4 }
 // Response:        { recipe, found_online, model, ms }
 //   recipe has origin "generated", a "gen-…" id, and `source` ({ name } of the website, e.g.
-//   "bbcgoodfood.com", or null). found_online is false when the recipe came from the fallback
+//   "seriouseats.com", or null). found_online is false when the recipe came from the fallback
 //   or Gemini answered without searching.
 //
 // The server doesn't keep recipes: the device stores them and sends the whole recipe to
@@ -13,7 +13,7 @@
 
 import { z } from "zod";
 import { findRecipeOnline, writeRecipe } from "./ai/generate.js";
-import { MODEL, SEARCH_LOCATION, getClient, withBackup } from "./ai/gemini.js";
+import { MODEL, SEARCH_LOCATION, SEARCH_MODEL, getClient, withBackup } from "./ai/gemini.js";
 import { createRateLimiter, failureReason, readJsonRequest, sendJson } from "./http.js";
 
 const MAX_BODY_BYTES = 16 * 1024;
@@ -72,7 +72,7 @@ export async function handleGenerate(req, res) {
     console.log(
       `generate: found "${recipe.title}" (${recipe.steps.length} steps) on ${recipe.source?.name ?? "no website (didn't search)"} in ${elapsed()} ms`,
     );
-    sendJson(res, 200, { recipe, found_online: searched, model: MODEL, ms: elapsed() });
+    sendJson(res, 200, { recipe, found_online: searched, model: SEARCH_MODEL, ms: elapsed() });
     return;
   } catch (err) {
     lastSearch = {

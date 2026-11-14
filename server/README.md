@@ -41,6 +41,8 @@ Without Google credentials the server still starts. Everything works except
 | `GOOGLE_CREDENTIALS_B64` | none | Production: base64 of that JSON key (wins if both are set) |
 | `GEMINI_MODEL` | `gemini-4-hydrogen` | Fallback model: `gemini-3.8-flash` |
 | `GEMINI_LOCATION` | `eu` | Google Cloud location; keep it in the EU |
+| `GEMINI_SEARCH_MODEL` | `gemini-3.5-flash-lite` | Model for finding recipes on the web (the fastest) |
+| `GEMINI_SEARCH_LOCATION` | `global` | Location for the web search (Google Search isn't EU-only anyway) |
 | `AI_BACKUP_AFTER_MS` | `3500` | When to send the backup request (`withBackup`); for testing only |
 
 ---

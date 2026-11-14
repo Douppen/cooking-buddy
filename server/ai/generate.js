@@ -8,7 +8,7 @@
 //   when the search fails.
 
 import { toRecipe } from "../models/domain.js";
-import { MODEL } from "./gemini.js";
+import { MODEL, SEARCH_MODEL } from "./gemini.js";
 import { RECIPE_DRAFT_JSON_SCHEMA, RECIPE_WRITING_RULES, generatedRecipeId } from "./recipeFormat.js";
 
 const SERVINGS_RULE =
@@ -21,7 +21,8 @@ const SEARCH_INSTRUCTION = [
   "Then rewrite it in the format below: amounts in metric, steps short enough for the glasses, a few substitutes.",
   SERVINGS_RULE,
   "If the request is vague or not quite a dish, find the closest sensible dish.",
-  "Set source_site to the website the recipe is from, e.g. 'bbcgoodfood.com'.",
+  "Don't prefer any particular website: pick whichever result best fits the request.",
+  "Set source_site to the domain of the website the recipe is from.",
   RECIPE_WRITING_RULES,
 ].join("\n");
 
@@ -37,7 +38,7 @@ const WRITE_INSTRUCTION = [
 const FOUND_RECIPE_JSON_SCHEMA = {
   type: "object",
   properties: {
-    source_site: { type: "string", description: "Website the recipe is from, e.g. 'bbcgoodfood.com'" },
+    source_site: { type: "string", description: "Domain of the website the recipe is from" },
     recipe: RECIPE_DRAFT_JSON_SCHEMA,
   },
   required: ["source_site", "recipe"],
@@ -53,7 +54,7 @@ const FOUND_RECIPE_JSON_SCHEMA = {
  */
 export async function findRecipeOnline(ai, input, abortSignal) {
   const response = await ai.models.generateContent({
-    model: MODEL,
+    model: SEARCH_MODEL,
     contents: [{ role: "user", parts: [{ text: `The cook wants to cook: ${describe(input)}` }] }],
     config: {
       systemInstruction: SEARCH_INSTRUCTION,
@@ -66,7 +67,7 @@ export async function findRecipeOnline(ai, input, abortSignal) {
     },
   });
   const metadata = response.candidates?.[0]?.groundingMetadata;
-  logUsage("found a recipe", response, `searched ${JSON.stringify(metadata?.webSearchQueries ?? [])}`);
+  logUsage(SEARCH_MODEL, "found a recipe", response, `searched ${JSON.stringify(metadata?.webSearchQueries ?? [])}`);
   const { source_site: site, recipe: draft } = parseJson(response);
   const queries = metadata?.webSearchQueries ?? [];
   const source = sourceOf(queries, site);
@@ -91,7 +92,7 @@ export async function writeRecipe(ai, input, abortSignal) {
       abortSignal,
     },
   });
-  logUsage("wrote a recipe", response);
+  logUsage(MODEL, "wrote a recipe", response);
   const draft = parseJson(response);
   return toRecipe(draft, { recipe_id: generatedRecipeId(draft?.title ?? input.request), origin: "generated", edits: [] });
 }
@@ -101,8 +102,8 @@ export async function writeRecipe(ai, input, abortSignal) {
  * (Google reports its search queries). With our JSON output format Google doesn't return the
  * pages it found, so there is no link, only the site name.
  * @param {string[]} queries  webSearchQueries from Google's grounding metadata
- * @param {string} [site]  source_site from the model, e.g. "https://www.BBCGoodFood.com/"
- * @returns {{ name: string } | null}  e.g. { name: "bbcgoodfood.com" }
+ * @param {string} [site]  source_site from the model, e.g. "https://www.SeriousEats.com/"
+ * @returns {{ name: string } | null}  e.g. { name: "seriouseats.com" }
  */
 export function sourceOf(queries, site) {
   const name = bareDomain(site ?? "");
@@ -125,10 +126,10 @@ function parseJson(response) {
   }
 }
 
-function logUsage(what, response, extra = "") {
+function logUsage(model, what, response, extra = "") {
   const usage = response.usageMetadata ?? {};
   console.log(
-    `ai: ${MODEL} ${what}, thinking ${usage.thoughtsTokenCount ?? 0} tokens, ` +
+    `ai: ${model} ${what}, thinking ${usage.thoughtsTokenCount ?? 0} tokens, ` +
       `output ${usage.candidatesTokenCount ?? 0} tokens${extra ? `, ${extra}` : ""}`,
   );
 }

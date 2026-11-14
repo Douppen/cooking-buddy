@@ -87,8 +87,10 @@ Build everything so that port is cheap:
   tool, which Google keeps out of its data residency commitment on every endpoint
   ("Supported capabilities" in the Agent Platform docs) and logs for up to 3 days. This is a
   hackathon project, not production, so we accept that for recipe search only: it runs on
-  the `global` endpoint (`GEMINI_SEARCH_LOCATION`). `/api/ask` and the fallback recipe
-  writer stay in the EU. Don't "fix" this back without a replacement for web search.
+  the `global` endpoint (`GEMINI_SEARCH_LOCATION`) with the fastest model,
+  `gemini-3.5-flash-lite` (`GEMINI_SEARCH_MODEL`), since writing out the whole recipe is
+  most of its time. The prompt names no example website, so it doesn't favour one.
+  `/api/ask` and the fallback recipe writer stay in the EU on `gemini-4-hydrogen`. Don't "fix" this back without a replacement for web search.
 - **Auth is a service account key, not an API key.** Agent Platform API keys only reach the
   global endpoint, so they can't keep processing in the EU. The service account is
   `cooking-buddy@junction-2026-514714.iam.gserviceaccount.com` with the "Agent Platform
@@ -103,8 +105,8 @@ Build everything so that port is cheap:
   the recipe. Answers are 1–2 sentences, plain text, meant to be shown and spoken.
 - **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara for 4" }` returns
   `{ recipe, found_online, model, ms }`. Gemini searches the web, picks one well-reviewed
-  recipe and rewrites it in our format (~14 s); `recipe.source` is the website it used,
-  e.g. `{ name: "bbcgoodfood.com" }`. There's no link: with our JSON output format Google
+  recipe and rewrites it in our format ; `recipe.source` is the website it used,
+  e.g. `{ name: "seriouseats.com" }`. There's no link: with our JSON output format Google
   returns its search queries but not the pages, so `found_online` means Google reported a
   search. If the search fails, Gemini writes the classic version itself (`found_online:
   false`, `source: null`).

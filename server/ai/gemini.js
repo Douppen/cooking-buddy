@@ -13,6 +13,9 @@ export const LOCATION = process.env.GEMINI_LOCATION ?? "eu";
 // Finding recipes on the web uses Gemini's Google Search tool, which Google doesn't keep in
 // the EU on any endpoint, so it runs on the global endpoint (see CLAUDE.md, "AI").
 export const SEARCH_LOCATION = process.env.GEMINI_SEARCH_LOCATION ?? "global";
+// The web search writes a whole recipe as JSON, and output speed is most of its time, so it
+// uses the fastest model. Answers (/api/ask) keep MODEL.
+export const SEARCH_MODEL = process.env.GEMINI_SEARCH_MODEL ?? "gemini-3.5-flash-lite";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 const clients = new Map(); // location -> client, or null without credentials
@@ -106,7 +109,13 @@ export async function withBackup(
 // For GET /api/status: is the AI configured, and did the last warm-up reach Gemini?
 // The warm-up uses countTokens, so checking this costs nothing.
 export function aiStatus() {
-  return { configured: getClient() !== null, model: MODEL, location: LOCATION, last_warm_up: lastWarmUp };
+  return {
+    configured: getClient() !== null,
+    model: MODEL,
+    location: LOCATION,
+    search_model: SEARCH_MODEL,
+    last_warm_up: lastWarmUp,
+  };
 }
 
 function loadCredentials() {
