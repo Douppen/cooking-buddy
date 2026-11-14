@@ -77,7 +77,7 @@ server/
 | `GET /up` | Health check for Kamal and Docker, answers `OK` |
 | `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up } }`. Free: never calls the model |
 | `POST /api/ask` | `{ recipe, question, step_index?, servings?, image? }` → `{ answer, model, ms }`, plus `{ recipe, change_summary }` when it changed the recipe |
-| `POST /api/recipes/generate` | `{ request: "carbonara for 4", servings? }` → `{ recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name, url }` of the page. If the search fails, a classic recipe Gemini writes itself (`found_online: false`, `source: null`). Not stored on the server. 10 requests per minute per IP |
+| `POST /api/recipes/generate` | `{ request: "carbonara for 4", servings? }` → `{ recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name }` of the website (e.g. `bbcgoodfood.com`, no link). If the search fails, a classic recipe Gemini writes itself (`found_online: false`, `source: null`). Not stored on the server. 10 requests per minute per IP |
 | `GET /*` | The built glasses app; unknown paths without an extension get `index.html`, missing assets 404. `/test.html` is a browser page for trying `/api/ask` |
 
 All JSON responses are sent with `cache-control: no-store`. Errors are `{ error }`.
@@ -107,7 +107,7 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 a minute per IP. The web search gets one attempt of up to 20 s; if it fails, the fallback
 writer gets 18 s per attempt with a backup after 10 s, so the total stays under the app's
 45 s wait. `GET /api/status` includes `search: { location, last }`: how the last web search
-went (`ok`, `ms`, `source`, or `error`).
+went (`ok`, `ms`, `queries`, `source`, or `error`).
 
 ---
 
@@ -162,8 +162,9 @@ text.
   logs the time and token counts of every answer, so `kamal app logs` shows latency.
 - **`generate.js`**: `findRecipeOnline()` gives Gemini its Google Search tool (on the
   `global` endpoint: search isn't EU-only, see `CLAUDE.md`) and asks it to follow one real,
-  well-reviewed recipe and rewrite it as a draft. `pickSource()` takes the page from Google's
-  search results, never from the model's text, so the link is real. `writeRecipe()` is the
+  well-reviewed recipe and rewrite it as a draft, naming the website it used. `sourceOf()`
+  keeps that site name only if Google reports search queries (with our JSON output Google
+  doesn't return the pages themselves, so there's no link). `writeRecipe()` is the
   fallback: the classic version from Gemini's own knowledge, in the EU. Both return a Recipe
   with `origin: "generated"` and a `gen-<slug>-<random>` id.
 - **`recipeFormat.js`**: the JSON Schema Gemini writes recipes in, the shared writing rules

@@ -59,10 +59,10 @@ export const RecipeSchema = z.object({
     .default([])
     .describe("Short notes on changes the AI made for this cook, oldest first"),
   source: z
-    .object({ name: z.string(), url: z.string().url() })
+    .object({ name: z.string() })
     .nullable()
     .default(null)
-    .describe("The web page the recipe was found on (from Google Search), or null"),
+    .describe("The website the recipe was found on with Google Search (e.g. 'bbcgoodfood.com'), or null"),
 });
 
 // What the AI writes when it creates or edits a recipe: the recipe without the fields the

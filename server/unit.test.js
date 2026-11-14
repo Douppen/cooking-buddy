@@ -6,7 +6,7 @@ import { convertUnitSystem, scaleIngredients, toCelsiusInText } from "./scaling.
 import { RecipeSchema, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
-import { pickSource } from "./ai/generate.js";
+import { sourceOf } from "./ai/generate.js";
 import { recipeContext } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
 
@@ -131,19 +131,13 @@ test("AI recipes come out in Celsius", () => {
   assert.equal(made.ingredients[0].name, "Water, warmed to 43°C");
 });
 
-test("the source of a web recipe comes from Google's search results", () => {
-  const chunks = [
-    { web: { uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/a", title: "allrecipes.com" } },
-    { web: { uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/b", title: "bbcgoodfood.com" } },
-  ];
-  assert.deepEqual(pickSource(chunks, "www.BBCGoodFood.com"), {
-    name: "bbcgoodfood.com",
-    url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/b",
-  });
-  assert.equal(pickSource(chunks, "seriouseats.com").name, "allrecipes.com"); // unknown site: first page
-  assert.equal(pickSource([], "bbcgoodfood.com"), null); // no search happened
+test("a web recipe's source is the site Gemini names, only if it searched", () => {
+  const queries = ["spaghetti carbonara recipe bbc good food"];
+  assert.deepEqual(sourceOf(queries, "https://www.BBCGoodFood.com/recipes/x"), { name: "bbcgoodfood.com" });
+  assert.equal(sourceOf([], "bbcgoodfood.com"), null); // no search: no source
+  assert.equal(sourceOf(queries, ""), null);
   // The source stays on the recipe through toRecipe (and so through edits).
-  const source = pickSource(chunks, "bbcgoodfood.com");
+  const source = { name: "bbcgoodfood.com" };
   const kept = toRecipe(recipeToDraft(recipe), { recipe_id: "gen-x", origin: "generated", edits: ["x"], source });
   assert.deepEqual(kept.source, source);
 });

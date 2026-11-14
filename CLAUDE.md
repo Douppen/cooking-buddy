@@ -103,9 +103,11 @@ Build everything so that port is cheap:
   the recipe. Answers are 1–2 sentences, plain text, meant to be shown and spoken.
 - **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara for 4" }` returns
   `{ recipe, found_online, model, ms }`. Gemini searches the web, picks one well-reviewed
-  recipe and rewrites it in our format; `recipe.source` is `{ name, url }` of that page,
-  taken from Google's search results (the URL is a Google redirect link). If the search
-  fails, Gemini writes the classic version itself (`found_online: false`, `source: null`).
+  recipe and rewrites it in our format (~14 s); `recipe.source` is the website it used,
+  e.g. `{ name: "bbcgoodfood.com" }`. There's no link: with our JSON output format Google
+  returns its search queries but not the pages, so `found_online` means Google reported a
+  search. If the search fails, Gemini writes the classic version itself (`found_online:
+  false`, `source: null`).
   `GET /api/status` shows how the last search went. The server stores nothing; the device
   keeps the recipe and sends it to `/api/ask` like any recipe. Edits keep the source.
 - **Recipe format for the AI:** Gemini writes a "draft" (`RecipeDraftSchema`: no ids or step

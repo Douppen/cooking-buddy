@@ -4,8 +4,9 @@
 //
 // Request (JSON):  { request: "carbonara for 4", servings?: 4 }
 // Response:        { recipe, found_online, model, ms }
-//   recipe has origin "generated", a "gen-…" id, and `source` ({ name, url } of the web page,
-//   or null). found_online is false when the recipe came from the fallback.
+//   recipe has origin "generated", a "gen-…" id, and `source` ({ name } of the website, e.g.
+//   "bbcgoodfood.com", or null). found_online is false when the recipe came from the fallback
+//   or Gemini answered without searching.
 //
 // The server doesn't keep recipes: the device stores them and sends the whole recipe to
 // /api/ask. The prompts live in ai/generate.js.
@@ -29,7 +30,7 @@ export const GenerateRequestSchema = z.object({
 });
 
 // For GET /api/status: how the last web search went, so a failing search shows up without
-// reading server logs. { ok, ms, at, searched?, source?, error? }
+// reading server logs. { ok, ms, at, request, searched?, source?, queries?, error? }
 let lastSearch = null;
 
 export function searchStatus() {
@@ -58,7 +59,7 @@ export async function handleGenerate(req, res) {
   // 1. A real recipe from the web. One attempt: a backup search would double the cost, and
   //    the fallback below covers failures.
   try {
-    const { recipe, searched, search } = await findRecipeOnline(searchAi, request, AbortSignal.timeout(SEARCH_TIMEOUT_MS));
+    const { recipe, searched, queries } = await findRecipeOnline(searchAi, request, AbortSignal.timeout(SEARCH_TIMEOUT_MS));
     lastSearch = {
       ok: true,
       ms: elapsed(),
@@ -66,10 +67,10 @@ export async function handleGenerate(req, res) {
       request: request.request,
       searched,
       source: recipe.source?.name ?? null,
-      ...search,
+      queries,
     };
     console.log(
-      `generate: found "${recipe.title}" (${recipe.steps.length} steps) on ${recipe.source?.name ?? "no page"} in ${elapsed()} ms`,
+      `generate: found "${recipe.title}" (${recipe.steps.length} steps) on ${recipe.source?.name ?? "no website (didn't search)"} in ${elapsed()} ms`,
     );
     sendJson(res, 200, { recipe, found_online: searched, model: MODEL, ms: elapsed() });
     return;

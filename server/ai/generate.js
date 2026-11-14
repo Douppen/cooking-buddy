@@ -3,7 +3,7 @@
 // device keeps it, the server doesn't store it.
 //
 // findRecipeOnline(): Gemini searches the web with its Google Search tool, picks one real
-//   recipe and rewrites it in our format. `source` is the page Google's search returned.
+//   recipe and rewrites it in our format. `source` is the website it names.
 // writeRecipe(): Gemini writes the classic version from its own knowledge. The fallback
 //   when the search fails.
 
@@ -48,8 +48,8 @@ const FOUND_RECIPE_JSON_SCHEMA = {
  * @param {import("@google/genai").GoogleGenAI} ai  a client on SEARCH_LOCATION (gemini.js)
  * @param {{ request: string, servings?: number }} input
  * @param {AbortSignal} [abortSignal]
- * @returns {Promise<{ recipe: object, searched: boolean }>}  searched is false when Gemini
- *   answered without actually searching (then the recipe has no source)
+ * @returns {Promise<{ recipe: object, searched: boolean, queries: string[] }>}  searched is
+ *   false when Gemini answered without actually searching (then the recipe has no source)
  */
 export async function findRecipeOnline(ai, input, abortSignal) {
   const response = await ai.models.generateContent({
@@ -68,17 +68,12 @@ export async function findRecipeOnline(ai, input, abortSignal) {
   const metadata = response.candidates?.[0]?.groundingMetadata;
   logUsage("found a recipe", response, `searched ${JSON.stringify(metadata?.webSearchQueries ?? [])}`);
   const { source_site: site, recipe: draft } = parseJson(response);
-  const source = pickSource(metadata?.groundingChunks ?? [], site);
+  const queries = metadata?.webSearchQueries ?? [];
+  const source = sourceOf(queries, site);
   return {
     recipe: toRecipe(draft, { recipe_id: generatedRecipeId(draft?.title ?? input.request), origin: "generated", edits: [], source }),
-    searched: source !== null,
-    // What Google reported about the search, for GET /api/status.
-    search: {
-      queries: metadata?.webSearchQueries ?? [],
-      pages: (metadata?.groundingChunks ?? []).length,
-      site,
-      metadata_fields: Object.keys(metadata ?? {}),
-    },
+    searched: queries.length > 0,
+    queries,
   };
 }
 
@@ -102,18 +97,16 @@ export async function writeRecipe(ai, input, abortSignal) {
 }
 
 /**
- * The page the recipe came from, out of the pages Google Search returned (never from the
- * model's own text, so the link is real): the one on the site the model named, else the
- * first. Google's links are redirects through vertexaisearch.cloud.google.com.
- * @param {Array<{ web?: { uri?: string, title?: string, domain?: string } }>} chunks
- * @param {string} [site]  source_site from the model, e.g. "bbcgoodfood.com"
+ * The website the recipe came from: the site Gemini names, but only if it actually searched
+ * (Google reports its search queries). With our JSON output format Google doesn't return the
+ * pages it found, so there is no link, only the site name.
+ * @param {string[]} queries  webSearchQueries from Google's grounding metadata
+ * @param {string} [site]  source_site from the model, e.g. "https://www.BBCGoodFood.com/"
+ * @returns {{ name: string } | null}  e.g. { name: "bbcgoodfood.com" }
  */
-export function pickSource(chunks, site) {
-  const pages = chunks.map((chunk) => chunk.web).filter((web) => web?.uri);
-  if (pages.length === 0) return null;
-  const want = bareDomain(site ?? "");
-  const page = (want && pages.find((web) => bareDomain(web.domain ?? web.title ?? "").includes(want))) || pages[0];
-  return { name: page.title || page.domain || bareDomain(site ?? "") || "the web", url: page.uri };
+export function sourceOf(queries, site) {
+  const name = bareDomain(site ?? "");
+  return queries.length > 0 && name ? { name } : null;
 }
 
 function bareDomain(text) {
