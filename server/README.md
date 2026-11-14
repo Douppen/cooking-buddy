@@ -117,7 +117,7 @@ The **Zod** recipe schema, used for requests and AI output: base metric units
 cues, timers, `origin` (`generated`; `library` only on recipes saved before the built-in
 recipes were removed) and `edits`. Also `RecipeDraftSchema` (a
 recipe as the AI writes it, without ids) and `toRecipe()`, which turns a draft into a valid
-Recipe.
+Recipe and converts any temperatures left in °F or gas marks to °C (`toCelsiusInText()`).
 
 ### `scaling.js` (servings and units)
 
@@ -125,8 +125,14 @@ Pure functions with no side effects: `scaleIngredients()` multiplies amounts by
 servings / base servings, and `convertUnitSystem()` turns them into display amounts in
 metric or imperial with practical cooking rounding (oz/lb for grams; tsp, tbsp and
 cups in measuring-set fractions for millilitres; counts unchanged), the same rules as
-`app/src/units.ts`. The answer prompt uses it with `unit_system` from `/api/ask`. The answer prompt uses it, and so should a future
-"scale servings" feature.
+`app/src/units.ts`. The answer prompt uses it with `unit_system` from `/api/ask`, and so
+should a future "scale servings" feature.
+
+Temperatures live in the step text and are always stored in Celsius ("Bake at 180°C"); the
+app shows them in °F for imperial. `toCelsiusInText()` turns any °F or gas mark the AI left
+in a recipe into °C, rounding oven temperatures to the nearest 10°C so they convert back to
+the usual °F numbers (350°F → 180°C → 350°F) and keeping core temperatures exact
+(145°F → 63°C).
 
 ### `ai/` (everything that calls Gemini)
 

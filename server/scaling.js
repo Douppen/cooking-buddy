@@ -65,6 +65,40 @@ function decimal(n, digits) {
   return String(Number(n.toFixed(digits)));
 }
 
+// --- Temperatures in text -----------------------------------------------------------------
+// Recipes store temperatures in the step text, always in Celsius ("Bake at 180°C"); the app
+// shows them in °F for imperial (inUnitSystem() in app/src/units.ts). Web recipes are often
+// in °F or gas marks, and the AI doesn't always convert, so toRecipe() runs every AI-written
+// recipe through toCelsiusInText(). It writes "180°C", the form the app's converter reads.
+
+const NUMBER = String.raw`\d+(?:\.\d+)?`;
+const FAHRENHEIT_IN_TEXT = new RegExp(
+  String.raw`(?<![\d.,])(${NUMBER})(?:\s*(?:-|–|to)\s*(${NUMBER}))?\s*` +
+    String.raw`(?:[°º]\s*F\b|[Dd]egrees?\s+(?:F\b|[Ff]ahrenheit\b)|[Ff]ahrenheit\b|F\b)`,
+  "g",
+);
+const GAS_MARK = /\bgas mark\s*(\d)\b/gi;
+const GAS_MARK_CELSIUS = { 1: 140, 2: 150, 3: 170, 4: 180, 5: 190, 6: 200, 7: 220, 8: 230, 9: 240 };
+
+/**
+ * "Bake at 350°F" → "Bake at 180°C", "375 degrees F" → "190°C", "gas mark 6" → "200°C".
+ * Oven temperatures (250°F and up) round to the nearest 10°C like an oven dial; lower ones
+ * (a meat's core temperature) to the degree: "145°F" → "63°C". Celsius text is unchanged.
+ */
+export function toCelsiusInText(text) {
+  return text
+    .replace(FAHRENHEIT_IN_TEXT, (_match, first, second) => {
+      const values = second === undefined ? [first] : [first, second];
+      return `${values.map((f) => celsius(Number(f))).join("–")}°C`;
+    })
+    .replace(GAS_MARK, (match, mark) => (GAS_MARK_CELSIUS[mark] ? `${GAS_MARK_CELSIUS[mark]}°C` : match));
+}
+
+function celsius(fahrenheit) {
+  const c = ((fahrenheit - 32) * 5) / 9;
+  return fahrenheit >= 250 ? Math.round(c / 10) * 10 : Math.round(c);
+}
+
 // "1¼", "⅔", "3": the nearest fraction from the set, never "0" (the smallest one instead).
 function fraction(value, fractions) {
   let whole = Math.floor(value);

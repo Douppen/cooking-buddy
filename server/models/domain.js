@@ -3,6 +3,7 @@
  */
 
 import { z } from "zod";
+import { toCelsiusInText } from "../scaling.js";
 
 export const IngredientSchema = z.object({
   id: z.string().describe("Clean snake_case identifier (e.g. 'heavy_cream')"),
@@ -81,7 +82,7 @@ export const RecipeDraftSchema = z.object({
  * isn't a valid Recipe.
  */
 export function toRecipe(draft, { recipe_id, origin, edits, previous }) {
-  const parsed = RecipeDraftSchema.parse(draft);
+  const parsed = inCelsius(RecipeDraftSchema.parse(draft));
   const previousIds = new Map((previous?.ingredients ?? []).map((ing) => [ing.name.toLowerCase(), ing.id]));
   const used = new Set();
   const ingredients = parsed.ingredients.map((ing) => {
@@ -95,4 +96,19 @@ export function toRecipe(draft, { recipe_id, origin, edits, previous }) {
   });
   const steps = parsed.steps.map((step, index) => ({ index, ...step }));
   return RecipeSchema.parse({ ...parsed, recipe_id, ingredients, steps, origin, edits });
+}
+
+// Recipes keep temperatures in °C (the app converts for imperial). The AI is told so, but
+// a web recipe in °F sometimes slips through, so convert whatever is left.
+function inCelsius(draft) {
+  return {
+    ...draft,
+    title: toCelsiusInText(draft.title),
+    ingredients: draft.ingredients.map((ing) => ({ ...ing, name: toCelsiusInText(ing.name) })),
+    steps: draft.steps.map((step) => ({
+      ...step,
+      instruction: toCelsiusInText(step.instruction),
+      visual_cues: step.visual_cues.map(toCelsiusInText),
+    })),
+  };
 }

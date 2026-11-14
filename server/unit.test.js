@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { convertUnitSystem, scaleIngredients } from "./scaling.js";
+import { convertUnitSystem, scaleIngredients, toCelsiusInText } from "./scaling.js";
 import { RecipeSchema, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
@@ -99,6 +99,35 @@ test("AI drafts become valid recipes", () => {
   assert.throws(() => toRecipe({ title: "Nothing", base_servings: 1, ingredients: [], steps: [] }, {
     recipe_id: "x", origin: "generated", edits: [],
   }));
+});
+
+test("temperatures in text become Celsius", () => {
+  assert.equal(toCelsiusInText("Bake at 350°F for 12 min."), "Bake at 180°C for 12 min.");
+  assert.equal(toCelsiusInText("Preheat oven to 375 degrees F."), "Preheat oven to 190°C.");
+  assert.equal(toCelsiusInText("Heat to 400 degrees Fahrenheit"), "Heat to 200°C");
+  assert.equal(toCelsiusInText("Fry at 350F until golden."), "Fry at 180°C until golden.");
+  assert.equal(toCelsiusInText("Bake at 325-350 °F."), "Bake at 160–180°C.");
+  assert.equal(toCelsiusInText("Cook until 145°F inside."), "Cook until 63°C inside.");
+  assert.equal(toCelsiusInText("Bake at gas mark 6."), "Bake at 200°C.");
+  // Left alone: Celsius already, and numbers that aren't temperatures.
+  for (const text of ["Bake at 200°C (180°C fan).", "Add 2 eggs and 3 Fuji apples.", "Grade F 2 flour"]) {
+    assert.equal(toCelsiusInText(text), text);
+  }
+});
+
+test("AI recipes come out in Celsius", () => {
+  const made = toRecipe(
+    {
+      title: "Cookies",
+      base_servings: 12,
+      ingredients: [{ name: "Water, warmed to 110°F", base_amount: 50, base_unit: "ml", substitutes: [], optional: false }],
+      steps: [{ title: "Bake", instruction: "Bake at 375°F for 10 min.", visual_cues: ["Golden at 375°F"], timer_sec: 600 }],
+    },
+    { recipe_id: "gen-cookies-x", origin: "generated", edits: [] },
+  );
+  assert.equal(made.steps[0].instruction, "Bake at 190°C for 10 min.");
+  assert.deepEqual(made.steps[0].visual_cues, ["Golden at 190°C"]);
+  assert.equal(made.ingredients[0].name, "Water, warmed to 43°C");
 });
 
 test("generate request validation", () => {
