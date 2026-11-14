@@ -137,7 +137,11 @@ export function Cooking({
       .catch(err => {
         if (controller.signal.aborted) return;
         console.error('Asking failed:', err);
-        dispatch({type: 'failed', message: "Couldn't get an answer. Ask again."});
+        const message = "Couldn't get an answer. Ask again.";
+        // Read aloud like an answer, shown when the voice starts.
+        return speak(message).then(() => {
+          if (!controller.signal.aborted) dispatch({type: 'failed', message});
+        });
       })
       .finally(() => {
         if (pending.current === controller) pending.current = null;

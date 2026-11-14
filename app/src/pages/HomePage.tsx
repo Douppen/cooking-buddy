@@ -43,6 +43,8 @@ const VOICE_TOGGLE_MATERIAL = toggleMaterial();
 // is fetched (the server hears the number). Saved on the recipe as `servings`; the recipe
 // keeps its own base_servings and the cooking screen scales amounts (scalingFor() in
 // cookingState.ts).
+const FAILED_MESSAGE = "Couldn't answer that. Try again.";
+
 const DEFAULT_SERVINGS = 2;
 const MIN_SERVINGS = 1;
 const MAX_SERVINGS = 8;
@@ -144,8 +146,12 @@ export function HomePage() {
       .catch(err => {
         if (signal.aborted) return;
         console.error('The home box failed:', err);
-        // The server's own words when it gave some ("Let's keep it to food…").
-        setStatus({kind: 'failed', message: err instanceof ServerMessageError ? err.message : undefined});
+        // The server's own words when it gave some ("Let's keep it to food…"), read aloud like
+        // an answer and shown when the voice starts.
+        const message = err instanceof ServerMessageError ? err.message : FAILED_MESSAGE;
+        return speak(message).then(() => {
+          if (!signal.aborted) setStatus({kind: 'failed', message});
+        });
       });
   };
 
@@ -160,7 +166,7 @@ export function HomePage() {
       case 'answered':
         return status.answer;
       case 'failed':
-        return status.message ?? "Couldn't answer that. Try again.";
+        return status.message ?? FAILED_MESSAGE;
       case 'idle':
         // One line, like the field's hint says the rest: a second line pushes the last
         // recipe row into a scroll area (home must fit 600×600 without scrolling).
