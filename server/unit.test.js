@@ -357,7 +357,9 @@ test("a recipe change gets a standard answer, not Gemini's words", () => {
     draft: null,
     servings: 6,
   });
-  assert.equal(toAnswer({ change_summary: "Scaled to 20", servings: 20, answer: "" }).servings, 8);
+  const capped = toAnswer({ change_summary: "Doubled to 12 servings", servings: 12, answer: "" });
+  assert.equal(capped.servings, 8);
+  assert.equal(capped.answer, "Scaled to 8 servings.");
   assert.equal(toAnswer({ change_summary: "", servings: 0, answer: "Fry it." }).servings, null);
   assert.throws(() => toAnswer({ change_summary: "", answer: "" }));
 });

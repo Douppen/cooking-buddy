@@ -64,12 +64,13 @@ const RESPONSE_JSON_SCHEMA = {
  *   servings is the new number of servings the cook asked for ("make it for 6"), or null
  */
 export async function answerQuestion(ai, { recipe, step_index, question, servings, unit_system, image }, abortSignal) {
+  // The request's servings, else the cook's choice saved on the recipe, else its own.
+  const making = servings ?? recipe.servings ?? recipe.base_servings;
   const parts = [];
   if (image) parts.push({ inlineData: { mimeType: image.mime_type, data: image.data } });
   parts.push({
     text: [
-      // The request's servings, else the cook's choice saved on the recipe, else its own.
-      recipeContext(recipe, step_index, servings ?? recipe.servings ?? recipe.base_servings, unit_system),
+      recipeContext(recipe, step_index, making, unit_system),
       "",
       `Recipe JSON (amounts for base_servings ${recipe.base_servings}):`,
       JSON.stringify(recipeToDraft(recipe)),
@@ -77,6 +78,7 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
       step_index === undefined
         ? "The cook is looking at the whole recipe."
         : `The cook is on step ${step_index + 1} of ${recipe.steps.length}.`,
+      `The cook is making ${making} servings now ('double it' means ${making * 2}, 'halve it' ${Math.max(1, Math.round(making / 2))}).`,
       `The cook says: ${question}`,
     ].join("\n"),
   });
@@ -121,7 +123,9 @@ export function toAnswer(parsed) {
   const servings = Number.isFinite(asked) && asked >= 1 ? Math.min(asked, MAX_SERVINGS) : null;
   const draft = parsed.recipe && changeSummary ? parsed.recipe : null;
   if (draft || servings) {
-    const summary = changeSummary || `Scaled to ${servings} servings`;
+    // Past the app's limit (12 → 8), say what the cook gets.
+    const capped = servings && servings !== asked;
+    const summary = changeSummary && !capped ? changeSummary : `Scaled to ${servings} servings`;
     const answer = `${summary.charAt(0).toUpperCase()}${summary.slice(1)}.`;
     return { answer, changeSummary: summary, draft, servings };
   }
