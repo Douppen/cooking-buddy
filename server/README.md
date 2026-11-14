@@ -39,6 +39,7 @@ Without Google credentials the server still starts. Everything works except
 | `GOOGLE_CREDENTIALS_B64` | none | Production: base64 of that JSON key (wins if both are set) |
 | `GEMINI_MODEL` | `gemini-4-hydrogen` | Fallback model: `gemini-3.8-flash` |
 | `GEMINI_LOCATION` | `eu` | Google Cloud location; keep it in the EU |
+| `AI_BACKUP_AFTER_MS` | `3500` | When to send the backup request (`withBackup`); for testing only |
 
 ---
 
@@ -98,7 +99,7 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 | 400 | Not JSON, or fails validation (`issues: [{ path, message }]`) |
 | 405 / 415 / 413 | Not POST / not `application/json` / body over 3 MB |
 | 429 | More than 30 requests in a minute from one client IP (`cf-connecting-ip`) |
-| 502 | Gemini failed or timed out (20 s) |
+| 502 | Gemini failed or timed out: each attempt gets 10 s, and a backup request starts after 3.5 s or as soon as the first fails |
 | 503 | No Google credentials configured |
 
 ---
@@ -164,10 +165,14 @@ text.
   timeout), returns `null` without credentials, warms up the Google token and connection at
   startup and every 15 minutes with the free `countTokens` call (a cold first question took
   about 8 s instead of about 2 s), and reports `aiStatus()` for `/api/status`. Credentials
-  and region details are in `CLAUDE.md` under "AI".
+  and region details are in `CLAUDE.md` under "AI". `withBackup(call)` guards against
+  Gemini's occasional 7–18 s stalls: if a call hasn't finished after 3.5 s (or fails), it
+  starts one backup call and uses whichever finishes first. Use it for every user-facing
+  AI call.
 - **`answer.js`**: `answerQuestion()` builds the prompt (`recipeContext()`: amounts scaled to
   the requested servings, substitutes, the current step marked) and asks Gemini with
-  reasoning level `LOW` for a 1–2 sentence answer.
+  reasoning level `LOW` for a 1–2 sentence answer. It logs the time and token counts of
+  every answer, so `kamal app logs` shows latency in production.
 
 ### `ask.js` (POST /api/ask)
 

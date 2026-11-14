@@ -6,14 +6,19 @@ phone out of reach (but nearby: the glasses need their paired phone either way).
 
 Live at https://cook.simonnars.com.
 
-## Features (build top-down, finish one before starting the next)
+## The prototype: "Glance + ask"
 
-1. Recipe on the HUD, one step per screen. Neural Band swipe/pinch moves between steps.
-2. Ask about the recipe by voice ("how much butter?", "what can I use instead of
-   buttermilk?") and get a short spoken + on-screen answer that knows the current step.
+Keep the glasses UI minimal. It's a glance at one line, not a phone screen on your face.
 
-Nice to have, only after 1 and 2 work: timers per step, scaling servings, choosing from a
-few recipes.
+- **One screen.** The HUD shows only the current step's instruction as one big line, plus a
+  small step counter ("3/6"). No header, ingredient list, panels or buttons.
+- **Swipe** (`next` / `prev`) moves between steps. **Pinch** (`select`) asks a question by
+  voice through the glasses' dictation.
+- **The answer briefly replaces the step** on the HUD and is read aloud, then the step comes
+  back. The answer knows the current step (`/api/ask`).
+
+Nice to have, only once that works: timers per step, scaling servings, choosing from a few
+recipes. Add them without breaking the one-line rule.
 
 ## The plan: web app now, native app later
 

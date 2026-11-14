@@ -62,6 +62,38 @@ export function warmUpAi() {
   setInterval(warm, 15 * 60_000).unref();
 }
 
+// Most calls take 1.3–3 s, but now and then Gemini stalls for 7–18 s or fails with
+// DEADLINE_EXCEEDED, while its reasoning stays the same size. So withBackup(call) runs
+// call(signal); if that hasn't finished after BACKUP_AFTER_MS (or fails sooner), it starts
+// one backup call and returns whichever finishes first as { value, attempt }. That costs
+// extra only on the slow ~10% of calls. `call` must pass the signal on to Gemini.
+const BACKUP_AFTER_MS = Number(process.env.AI_BACKUP_AFTER_MS ?? 3_500); // env override is for testing
+const ATTEMPT_TIMEOUT_MS = 10_000;
+
+export async function withBackup(call) {
+  const controllers = [];
+  const attempt = (n) => {
+    const controller = new AbortController();
+    controllers.push(controller);
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(ATTEMPT_TIMEOUT_MS)]);
+    return call(signal).then((value) => ({ value, attempt: n }));
+  };
+  const first = attempt(1);
+  const backup = new Promise((resolve, reject) => {
+    const startBackup = () => {
+      clearTimeout(timer);
+      if (controllers.length < 2) attempt(2).then(resolve, reject);
+    };
+    const timer = setTimeout(startBackup, BACKUP_AFTER_MS);
+    first.then(() => clearTimeout(timer), startBackup);
+  });
+  try {
+    return await Promise.any([first, backup]);
+  } finally {
+    for (const controller of controllers) controller.abort();
+  }
+}
+
 // For GET /api/status: is the AI configured, and did the last warm-up reach Gemini?
 // The warm-up uses countTokens, so checking this costs nothing.
 export function aiStatus() {

@@ -14,7 +14,7 @@
 
 import { z } from "zod";
 import { answerQuestion } from "./ai/answer.js";
-import { MODEL, getClient } from "./ai/gemini.js";
+import { MODEL, getClient, withBackup } from "./ai/gemini.js";
 import { RecipeSchema } from "./models/domain.js";
 import { clientIp, createRateLimiter, readBody, sendJson } from "./http.js";
 
@@ -84,10 +84,14 @@ export async function handleAsk(req, res) {
 
   const started = performance.now();
   try {
-    const answer = await answerQuestion(ai, parsed.data);
-    sendJson(res, 200, { answer, model: MODEL, ms: Math.round(performance.now() - started) });
+    const { value: answer, attempt } = await withBackup((signal) => answerQuestion(ai, parsed.data, signal));
+    const ms = Math.round(performance.now() - started);
+    console.log(`ask: answered in ${ms} ms${attempt === 2 ? " (backup request won)" : ""}`);
+    sendJson(res, 200, { answer, model: MODEL, ms });
   } catch (err) {
-    console.error(`ask failed after ${Math.round(performance.now() - started)} ms:`, err?.message ?? err);
+    const reason =
+      err instanceof AggregateError ? err.errors.map((e) => e?.message ?? e).join(" | ") : (err?.message ?? err);
+    console.error(`ask failed after ${Math.round(performance.now() - started)} ms:`, reason);
     sendJson(res, 502, { error: "The AI didn't answer. Try again." });
   }
 }

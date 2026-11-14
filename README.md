@@ -3,9 +3,10 @@
 Hands-free recipe steps and answers on Meta Ray-Ban Display glasses, driven by the Neural
 Band. Live at **https://cook.simonnars.com**.
 
-1. The recipe on the glasses' display, one step per screen. Swipe or pinch to move between steps.
-2. Ask about the recipe by voice ("how much butter?") and get a short answer that knows
-   the current step.
+"Glance + ask": the display shows only the current step as one line and a small step
+counter. Swipe to move between steps. Pinch the ask field and ask by voice ("how much
+butter?"): a short answer that knows the current step briefly replaces the step and is read
+aloud.
 
 ## Layout
 

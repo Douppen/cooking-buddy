@@ -17,9 +17,10 @@ const SYSTEM_INSTRUCTION = [
  * @param {import("@google/genai").GoogleGenAI} ai  client from gemini.js
  * @param {{ recipe, step_index: number, question: string, servings?: number,
  *           image?: { mime_type: string, data: string } }} request  a validated /api/ask body
+ * @param {AbortSignal} [abortSignal]  cancels the call (used by withBackup in gemini.js)
  * @returns {Promise<string>} the answer text
  */
-export async function answerQuestion(ai, { recipe, step_index, question, servings, image }) {
+export async function answerQuestion(ai, { recipe, step_index, question, servings, image }, abortSignal) {
   const parts = [];
   if (image) parts.push({ inlineData: { mimeType: image.mime_type, data: image.data } });
   parts.push({
@@ -38,9 +39,15 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
       systemInstruction: SYSTEM_INSTRUCTION,
       thinkingConfig: { thinkingLevel: "LOW" }, // quick answers matter more than deep reasoning
       maxOutputTokens: 1024,
+      abortSignal,
     },
   });
   const answer = response.text?.trim();
+  const usage = response.usageMetadata ?? {};
+  console.log(
+    `ai: ${MODEL} answered, thinking ${usage.thoughtsTokenCount ?? 0} tokens, ` +
+      `answer ${usage.candidatesTokenCount ?? 0} tokens, prompt ${usage.promptTokenCount ?? 0} tokens`,
+  );
   if (!answer) {
     throw new Error(`empty answer (finish reason: ${response.candidates?.[0]?.finishReason ?? "unknown"})`);
   }
