@@ -55,7 +55,8 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   time. The app runs it (`app/src/timers.ts`): one line per timer under the lists, with the
   toolkit's timer icon, "Pasta · 8 min · done 15:42", updated once a minute. At most 3; the
   same label restarts it. When one ends: "Pasta timer is done", shown under TIMER and said.
-  Timers live on the cooking screen only (leaving it stops them).
+  Timers live on the cooking screen only (leaving it stops them). On home, a timer request
+  gets "Timers work once a recipe is open…" (not the not-food message).
 - **A command ("swap the butter for oil", "leave out the carrots", "make it vegetarian") or
   "I don't have X" edits the recipe**. A question or wish ("can I swap the butter?", "do I
   need eggs?", "I'm watching my blood pressure, can I…") only gets an answer that suggests
