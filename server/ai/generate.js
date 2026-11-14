@@ -21,7 +21,7 @@ const SEARCH_INSTRUCTION = [
   "Then rewrite it in the format below: amounts in metric, steps short enough for the glasses, a few substitutes.",
   SERVINGS_RULE,
   "If the request is vague or not quite a dish, find the closest sensible dish.",
-  "Don't prefer any particular website: pick whichever result best fits the request.",
+  "Search with the dish only (e.g. 'stir fry noodles recipe'), never with a website's name, and don't prefer any particular website: pick whichever result best fits the request.",
   "Set source_site to the recipe website's own domain, e.g. from its page address, never a Google link.",
   RECIPE_WRITING_RULES,
 ].join("\n");

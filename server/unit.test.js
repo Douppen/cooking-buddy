@@ -150,6 +150,21 @@ test("spoons and pinches: same in both systems, scaled between tsp and tbsp", ()
   assert.deepEqual(cleanSpoon(1, "pinch"), { amount: 1, unit: "pinch" });
 });
 
+test("a long step doesn't throw away the recipe", () => {
+  const long = "Toss in the cooked noodles with 2 tbsp soy sauce, 1 tsp sesame oil, 1 tbsp oyster sauce, 100 g bean sprouts and 2 sliced spring onions, then stir-fry over high heat for 1 min until glossy.";
+  assert.ok(long.length > 160);
+  const made = toRecipe(
+    {
+      title: "Noodles",
+      base_servings: 2,
+      ingredients: [{ name: "Noodles", base_amount: 200, base_unit: "g", substitutes: [], optional: false }],
+      steps: [{ title: "Toss", instruction: long, visual_cues: [], timer_sec: 60 }],
+    },
+    { recipe_id: "gen-noodles-x", origin: "generated", edits: [] },
+  );
+  assert.equal(made.steps.length, 1);
+});
+
 test("small liquid amounts are stored in spoons", () => {
   const ing = (base_amount) => ({ name: "Olive oil", base_amount, base_unit: "ml", substitutes: [], optional: false });
   const made = toRecipe(

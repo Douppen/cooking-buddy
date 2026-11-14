@@ -75,7 +75,10 @@ export const RecipeDraftSchema = z.object({
     .min(1)
     .max(25),
   steps: z
-    .array(StepSchema.omit({ index: true }).extend({ instruction: z.string().min(1).max(160) }))
+    // The prompt asks for at most 18 words; this only stops runaways. A step naming every
+    // ingredient's amount can pass 160 characters, and rejecting the whole recipe for that
+    // sent good web recipes to the fallback.
+    .array(StepSchema.omit({ index: true }).extend({ instruction: z.string().min(1).max(300) }))
     .min(1)
     .max(15),
 });
