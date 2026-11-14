@@ -26,12 +26,13 @@ test('at most 3 timers: a new one replaces the oldest', () => {
   assert.deepEqual(timers.map(t => t.label), ['B', 'C', 'D']);
 });
 
-test('a timer shows minutes left and when it ends', () => {
+test('a timer counts down to the second and shows when it ends', () => {
   const timer: Timer = {id: 'x', label: 'Pasta', endsAt: at(15, 42)};
-  assert.equal(timerLine(timer, at(15, 34)), 'Pasta · 8 min · done 15:42');
-  assert.equal(timerLine(timer, at(15, 34) + 30_000), 'Pasta · 8 min · done 15:42'); // rounds up
-  assert.equal(timerLine(timer, at(15, 41) + 30_000), 'Pasta · under 1 min · done 15:42');
-  assert.equal(timerLine({id: 'y', label: 'Oven', endsAt: at(9, 5)}, at(9, 0)), 'Oven · 5 min · done 9:05');
+  assert.equal(timerLine(timer, at(15, 34)), 'Pasta · 8:00 · done 15:42');
+  assert.equal(timerLine(timer, at(15, 34) + 1_000), 'Pasta · 7:59 · done 15:42');
+  assert.equal(timerLine(timer, at(15, 41) + 30_500), 'Pasta · 0:30 · done 15:42'); // rounds up
+  assert.equal(timerLine(timer, at(15, 43)), 'Pasta · 0:00 · done 15:42');
+  assert.equal(timerLine({id: 'y', label: 'Stew', endsAt: at(17, 5)}, at(15, 0)), 'Stew · 2:05:00 · done 17:05');
   assert.equal(timerDoneText(timer), 'Pasta timer is done.');
   assert.equal(timerDoneText({...timer, label: 'Timer'}), 'Your timer is done.');
 });

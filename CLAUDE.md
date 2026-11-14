@@ -53,7 +53,8 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   this step", "stop the timer"): `/api/ask` returns `timer` (`{ action: "start", seconds,
   label }` or `{ action: "cancel", label }`), minutes from the cook's words or the step's
   time. The app runs it (`app/src/timers.ts`): one line per timer under the lists, with the
-  toolkit's timer icon, "Pasta · 8 min · done 15:42", updated once a minute. At most 3; the
+  toolkit's timer icon, counting down every second: "Pasta · 7:58 · done 15:42" (the cook
+  asked for a live countdown; `TimerDock.tsx` redraws only that row). At most 3; the
   same label restarts it. When one ends: "Pasta timer is done", shown under TIMER and said.
   Timers live on the cooking screen only (leaving it stops them). On home, a timer request
   gets "Timers work once a recipe is open…" (not the not-food message).
@@ -266,6 +267,10 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
 
 ## Porting notes
 
+- Timers count down every second on the web (`TimerDock.tsx`), the one exception to "nothing
+  that updates every second". Native re-sends the whole screen per update over Bluetooth:
+  measure whether 1 s ticks are affordable there, else tick every 5–10 s or once a minute,
+  keeping "done 15:42" as the exact time.
 - The ask field (`AskField.tsx`): the web app gets no microphone, only the system composer,
   so sending is a separate ➤ target that takes focus once the text is in. Native (with the
   phone's speech recognition) can make it one record button: pinch to record, pinch to send.

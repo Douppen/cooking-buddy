@@ -1,8 +1,9 @@
 // Kitchen timers on the cooking screen, started and stopped by voice ("set a timer for 10
 // minutes", "time the pasta", "stop the timer"): /api/ask returns the timer, the app runs it.
-// Free of React and the DOM, like cookingState.ts. The screen shows each timer as one line,
-// "Pasta · 8 min · done 15:42", updated once a minute (no ticking seconds: a native app
-// re-sends the whole screen on every update). When one ends, the app says so.
+// Free of React and the DOM, like cookingState.ts. The screen shows each timer as one line
+// counting down every second, "Pasta · 8:42 · done 15:42" (the cook asked for a live
+// countdown; native re-sends the whole screen per update, so it may tick less often there).
+// When one ends, the app says so.
 
 export interface Timer {
   id: string;
@@ -38,10 +39,13 @@ export function applyTimerCommand(timers: readonly Timer[], command: TimerComman
   return [...others, timer].slice(-MAX_TIMERS);
 }
 
-/** "Pasta · 8 min · done 15:42": minutes left (rounded up) and the clock time it ends. */
+/** "Pasta · 8:42 · done 15:42": time left (m:ss, or h:mm:ss) and the clock time it ends. */
 export function timerLine(timer: Timer, now: number): string {
-  const msLeft = timer.endsAt - now;
-  const left = msLeft < 60_000 ? 'under 1 min' : `${Math.ceil(msLeft / 60_000)} min`;
+  const total = Math.max(0, Math.ceil((timer.endsAt - now) / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, '0');
+  const left = h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
   const end = new Date(timer.endsAt);
   const clock = `${end.getHours()}:${String(end.getMinutes()).padStart(2, '0')}`;
   return `${timer.label} · ${left} · done ${clock}`;

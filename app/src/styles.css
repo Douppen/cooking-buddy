@@ -139,6 +139,11 @@ body {
   min-inline-size: 0;
 }
 
+/* Digits all the same width, so the countdown doesn't jiggle as it ticks. */
+.timer-text {
+  font-variant-numeric: tabular-nums;
+}
+
 .timer-icon {
   inline-size: 24px;
   block-size: 24px;

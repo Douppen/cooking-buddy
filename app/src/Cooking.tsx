@@ -1,7 +1,5 @@
 import {useEffect, useMemo, useReducer, useRef, useState} from 'react';
-import {timerOutline} from '@wearables-ui-toolkit/icons';
 import {
-  IconImage,
   Pager,
   PagerPage,
   ScrollView,
@@ -23,7 +21,8 @@ import {
 } from './cookingState';
 import {AskField, SEND_HINT} from './AskField';
 import {speak, stopSpeaking} from './speech';
-import {applyTimerCommand, timerDoneText, timerLine, type Timer} from './timers';
+import {TimerDock} from './TimerDock';
+import {applyTimerCommand, timerDoneText, type Timer} from './timers';
 import type {UnitSystem} from './units';
 
 // Cooking one recipe: the ingredients, and one swipe right, all the steps. Below both, a
@@ -47,15 +46,11 @@ export function Cooking({
   // The last answer (not a change), sent with the next question: "yes, do it" then makes the
   // change it suggested.
   const lastExchange = useRef<Exchange | undefined>(undefined);
-  // Timers the cook started by voice, and the time they're shown at: updated once a minute,
-  // not every second (see timers.ts).
+  // Timers the cook started by voice (TimerDock shows them counting down).
   const [timers, setTimers] = useState<Timer[]>([]);
-  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!timers.length) return;
-    setNow(Date.now());
-    const tick = setInterval(() => setNow(Date.now()), 60_000);
     // Each timer ends on time: said aloud and shown above the ask field.
     const endings = timers.map(timer =>
       setTimeout(
@@ -68,10 +63,7 @@ export function Cooking({
         Math.max(0, timer.endsAt - Date.now()),
       ),
     );
-    return () => {
-      clearInterval(tick);
-      endings.forEach(clearTimeout);
-    };
+    return () => endings.forEach(clearTimeout);
   }, [timers]);
 
   // Swipes arrive as ArrowLeft / ArrowRight from the Neural Band or touchpad. The pager also
@@ -202,18 +194,7 @@ export function Cooking({
           </ScrollView>
         </PagerPage>
       </Pager>
-      {timers.length > 0 && (
-        <div className="timers-dock" aria-label="Timers">
-          {timers.map(timer => (
-            <div key={timer.id} className="timer-line">
-              <IconImage source={timerOutline} className="timer-icon" />
-              <TextView as="span" textStyle={TextStyle.BODY2_EMPHASIZED}>
-                {timerLine(timer, now)}
-              </TextView>
-            </div>
-          ))}
-        </div>
-      )}
+      <TimerDock timers={timers} />
       <div className="answer-dock" aria-live="polite">
         {/* With text to send, how to send it; then the answer. */}
         {question.trim() && !busy ? (
