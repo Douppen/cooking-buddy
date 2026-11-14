@@ -20,8 +20,10 @@ export class RecipeEngine {
     return this.targetServings / this.recipe.base_servings;
   }
 
+  // Whole servings only: the HUD state (HudSyncMessageSchema) requires an integer, so a
+  // fractional value would make getHudState() throw.
   setServings(servings) {
-    if (servings > 0) {
+    if (Number.isInteger(servings) && servings > 0) {
       this.targetServings = servings;
     }
   }

@@ -1,12 +1,12 @@
 /**
  * @file session.js
- * @description In-memory runtime session manager for CookbookOS.
+ * @description In-memory cooking sessions for Cooking Buddy. Not wired to an endpoint yet.
  *
- * Coordinates live recipe execution between the Meta Glasses client and backend services:
  * - Stores ephemeral session state (active step, scale factor, unit preferences).
- * - Exposes reactive state hydration (via engine.js conversions) for the HUD view.
- * - Handles step navigation and debounced VLM completion auto-advance.
- * - Implements a pub/sub event mechanism to broadcast mutations over WebSockets/SSE.
+ * - Builds the HUD view (via engine.js conversions).
+ * - Handles step navigation and debounced auto-advance from camera-frame classifications
+ *   (for the native app, which gets camera access).
+ * - Notifies subscribers on every change, for whatever transport ends up pushing updates.
  */
 
 import crypto from "node:crypto";

@@ -1,8 +1,8 @@
 /**
- * server/models/protocol.js - Wire protocol schemas for the WebSocket relay.
+ * server/models/protocol.js - Tagged { t: string, ... } message schemas.
  *
- * Conforms directly to the tagged { t: string, ... } structure expected by
- * server.js and smoke.js.
+ * Written for the WebSocket relay, which was removed on 2026-11-14 (see "Porting notes" in
+ * CLAUDE.md). Only HudSyncMessageSchema is still used, by engine.js to validate HUD state.
  */
 
 import { z } from "zod";

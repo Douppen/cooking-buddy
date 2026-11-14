@@ -30,6 +30,8 @@ test("RecipeEngine navigation and HUD state", () => {
   assert.equal(hud.active_step_index, 1);
   assert.equal(hud.target_servings, 2);
   assert.ok(hud.display_ingredients.includes("125 g Plain flour"));
+  engine.setServings(2.5); // ignored: servings must be whole
+  assert.equal(engine.getHudState().target_servings, 2);
 });
 
 test("RecipeSession view and steps", () => {
