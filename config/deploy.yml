@@ -1,0 +1,60 @@
+# Cooking Buddy production deploy. One container serves the glasses web app and the
+# WebSocket relay at cook.simonnars.com.
+#
+# Runs on the SHARED Hetzner VPS next to abbis-web (prod + staging) and vettis, behind the
+# box's single kamal-proxy, which routes by hostname. Modeled on vettis/config/deploy.yml.
+#
+# Shared box rules: unique `service` name, unique host, and NEVER run `kamal remove`,
+# `kamal setup` or `kamal proxy reboot` from this repo: those touch the proxy every other
+# app depends on.
+
+service: cooking-buddy
+image: douppen/cooking-buddy
+
+servers:
+  web:
+    hosts:
+      - 46.224.236.167
+    options:
+      memory: 256m            # keep a hackathon app from hurting the prod apps on the box
+
+registry:
+  server: ghcr.io
+  username: Douppen
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+  # GHCR mishandles buildx provenance/SBOM attestations (same workaround as vettis).
+  provenance: false
+  sbom: false
+
+proxy:
+  app_port: 8787
+  ssl:
+    # Cloudflare origin certificate for the simonnars.com zone (GitHub secrets in CI).
+    certificate_pem: TLS_CERTIFICATE_PEM
+    private_key_pem: TLS_PRIVATE_KEY_PEM
+  hosts:
+    - cook.simonnars.com
+  healthcheck:
+    path: /up
+    interval: 1
+    timeout: 5
+
+env:
+  clear:
+    # Browser origins allowed to open a relay socket. The app itself is same-origin; the
+    # localhost entries cover dev and let `npm run smoke -- wss://cook.simonnars.com` work.
+    ALLOWED_ORIGINS: "https://cook.simonnars.com,http://localhost:5173,http://127.0.0.1:4173"
+
+ssh:
+  user: deploy
+  port: 22
+
+retain_containers: 2
+
+boot:
+  limit: 1
+  wait: 5

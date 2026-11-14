@@ -1,0 +1,101 @@
+name: Deploy
+
+# Push to main → checks → production (cook.simonnars.com). Also runnable by hand.
+# Repo secrets: KAMAL_SSH_PRIVATE_KEY, TLS_CERTIFICATE_PEM, TLS_PRIVATE_KEY_PEM.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            app/package-lock.json
+            server/package-lock.json
+
+      - name: Build glasses app
+        working-directory: app
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Server smoke test
+        working-directory: server
+        run: |
+          npm ci --no-audit --no-fund
+          node server.js &
+          for i in $(seq 1 20); do curl -sf http://localhost:8787/up && break; sleep 0.5; done
+          npm run smoke
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      TLS_CERTIFICATE_PEM: ${{ secrets.TLS_CERTIFICATE_PEM }}
+      TLS_PRIVATE_KEY_PEM: ${{ secrets.TLS_PRIVATE_KEY_PEM }}
+    steps:
+      - name: Check deploy secrets are set
+        env:
+          SSH_KEY: ${{ secrets.KAMAL_SSH_PRIVATE_KEY }}
+        run: |
+          missing=""
+          [ -n "$SSH_KEY" ] || missing="$missing KAMAL_SSH_PRIVATE_KEY"
+          [ -n "$TLS_CERTIFICATE_PEM" ] || missing="$missing TLS_CERTIFICATE_PEM"
+          [ -n "$TLS_PRIVATE_KEY_PEM" ] || missing="$missing TLS_PRIVATE_KEY_PEM"
+          if [ -n "$missing" ]; then echo "::error::Missing repo secrets:$missing"; exit 1; fi
+
+      - uses: actions/checkout@v6
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: false
+
+      - run: gem install kamal -v "~> 2.10"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.KAMAL_SSH_PRIVATE_KEY }}
+
+      - name: Pin SSH host key
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          cat .github/known_hosts >> ~/.ssh/known_hosts
+
+      - name: Release any stale Kamal lock
+        run: kamal lock release || true
+
+      - name: Deploy
+        run: kamal deploy
+
+      - name: Verify live
+        run: |
+          for i in $(seq 1 10); do curl -sf https://cook.simonnars.com/up && exit 0; sleep 3; done
+          echo "::error::https://cook.simonnars.com/up did not answer OK"; exit 1

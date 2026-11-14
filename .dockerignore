@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
+.git
+.github
+.kamal
+config
+server/smoke.js
+*.md
+.DS_Store

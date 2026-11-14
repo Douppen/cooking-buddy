@@ -1,0 +1,13 @@
+{
+  "name": "cooking-buddy-server",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node server.js",
+    "smoke": "node smoke.js"
+  },
+  "dependencies": {
+    "ws": "^8.23.0"
+  }
+}
