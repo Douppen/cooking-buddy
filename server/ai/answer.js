@@ -141,9 +141,10 @@ export function toTimer(timer) {
 
 function timerAnswer(timer) {
   if (timer.action === "cancel") return timer.label ? `${timer.label} timer stopped.` : "Timers stopped.";
-  const minutes = timer.seconds / 60;
-  const length = minutes >= 1 ? `${Math.round(minutes * 10) / 10} min` : `${timer.seconds} s`;
-  return `${timer.label} timer: ${length}.`;
+  const minutes = Math.floor(timer.seconds / 60);
+  const seconds = timer.seconds % 60;
+  const length = [minutes ? `${minutes} min` : "", seconds ? `${seconds} s` : ""].filter(Boolean).join(" ");
+  return timer.label === "Timer" ? `Timer: ${length}.` : `${timer.label} timer: ${length}.`;
 }
 
 /**

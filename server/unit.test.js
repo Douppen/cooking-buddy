@@ -393,4 +393,6 @@ test("timers the cook asks for", () => {
   assert.equal(set.answer, "Pasta timer: 10 min.");
   assert.deepEqual(set.timer, { action: "start", seconds: 600, label: "Pasta" });
   assert.equal(toAnswer({ change_summary: "", servings: 0, timer: { action: "cancel", label: "" }, answer: "" }).answer, "Timers stopped.");
+  const plain = toAnswer({ change_summary: "", servings: 0, timer: { action: "start", minutes: 1.5, label: "" }, answer: "" });
+  assert.equal(plain.answer, "Timer: 1 min 30 s.");
 });
