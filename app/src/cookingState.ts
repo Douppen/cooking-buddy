@@ -1,80 +1,87 @@
-// Cooking state for "glance + ask", kept free of React and the DOM so it reads as the spec
-// for the native (Swift/Kotlin) version. Input arrives as actions, not keys:
-// swipe -> next / prev, pinch on the ask field -> ask. The cook's words may also change
-// the recipe ("I don't have eggs"); the screen then shows what changed.
+// Cooking state, kept free of React and the DOM so it reads as the spec for the native
+// (Swift/Kotlin) version. The cooking screen has two views of one recipe, side by side:
+// the ingredients (left, shown first) and all the steps (right). Each is one vertical list
+// the cook scrolls. Input arrives as actions, not keys: swipe right -> next (steps),
+// swipe left -> prev (ingredients), pinch on the ask field -> ask. Swiping never wraps.
+//
+// Questions are about the whole recipe, not one step. The cook's words may also change the
+// recipe ("I don't have eggs"); the answer then says what changed, and both views show the
+// updated recipe.
+
+import type {Ingredient} from './api';
+
+export type View = 'ingredients' | 'steps';
+
+/** The views from left to right. */
+export const VIEWS: readonly View[] = ['ingredients', 'steps'];
 
 export type Mode =
-  | {kind: 'step'}
+  | {kind: 'idle'}
   | {kind: 'asking'; question: string}
   | {kind: 'answer'; answer: string; changed: boolean}
   | {kind: 'error'; message: string};
 
 export interface CookingState {
-  stepIndex: number;
-  stepCount: number;
+  view: View;
   mode: Mode;
 }
 
 export type CookingAction =
   | {type: 'next'}
   | {type: 'prev'}
+  | {type: 'show'; view: View}
   | {type: 'ask'; question: string}
   | {type: 'answered'; answer: string; changed: boolean}
   | {type: 'failed'; message: string}
-  | {type: 'dismiss'}
-  | {type: 'recipeChanged'; stepCount: number};
+  | {type: 'dismiss'};
 
-export function initialCookingState(stepCount: number): CookingState {
-  return {stepIndex: 0, stepCount, mode: {kind: 'step'}};
-}
+export const initialCookingState: CookingState = {view: 'ingredients', mode: {kind: 'idle'}};
 
 export function cookingReducer(state: CookingState, action: CookingAction): CookingState {
   switch (action.type) {
     case 'next':
-    case 'prev': {
-      // Swiping always returns to the step view, even mid-answer. A pending question keeps
-      // running: if it changes the recipe, that still lands.
-      const delta = action.type === 'next' ? 1 : -1;
-      const stepIndex = clamp(state.stepIndex + delta, state.stepCount);
-      return {...state, stepIndex, mode: {kind: 'step'}};
-    }
+      return {...state, view: 'steps'};
+    case 'prev':
+      return {...state, view: 'ingredients'};
+    case 'show':
+      return {...state, view: action.view};
     case 'ask':
       return {...state, mode: {kind: 'asking', question: action.question}};
     case 'answered':
-      // A plain answer that arrives after the cook swiped away is dropped. A recipe change
-      // is always shown, so the cook knows what changed.
-      return state.mode.kind === 'asking' || action.changed
-        ? {...state, mode: {kind: 'answer', answer: action.answer, changed: action.changed}}
-        : state;
+      return {...state, mode: {kind: 'answer', answer: action.answer, changed: action.changed}};
     case 'failed':
-      return state.mode.kind === 'asking'
-        ? {...state, mode: {kind: 'error', message: action.message}}
-        : state;
+      return {...state, mode: {kind: 'error', message: action.message}};
     case 'dismiss':
-      return {...state, mode: {kind: 'step'}};
-    case 'recipeChanged':
-      // An edit can add or remove steps; stay on the same step number where possible.
-      return {...state, stepCount: action.stepCount, stepIndex: clamp(state.stepIndex, action.stepCount)};
+      return {...state, mode: {kind: 'idle'}};
   }
 }
 
-function clamp(stepIndex: number, stepCount: number): number {
-  return Math.min(Math.max(stepIndex, 0), stepCount - 1);
-}
-
-/** What the one-line HUD shows: a small label and one main line. */
-export function hudText(state: CookingState, instruction: string): {label: string; main: string} {
-  const counter = `${state.stepIndex + 1}/${state.stepCount}`;
-  switch (state.mode.kind) {
-    case 'step':
+/**
+ * The answer shown above the ask field (and read aloud), or null when there's none. It
+ * stays on both views for ANSWER_VISIBLE_MS, then goes away.
+ */
+export function answerText(mode: Mode): {label: string; text: string} | null {
+  switch (mode.kind) {
+    case 'idle':
     case 'asking':
-      return {label: counter, main: instruction};
+      return null;
     case 'answer':
-      return {label: state.mode.changed ? 'RECIPE UPDATED' : 'ANSWER', main: state.mode.answer};
+      return {label: mode.changed ? 'RECIPE UPDATED' : 'ANSWER', text: mode.answer};
     case 'error':
-      return {label: counter, main: state.mode.message};
+      return {label: 'NO ANSWER', text: mode.message};
   }
 }
 
-/** How long an answer replaces the step before the step comes back. */
+/** How long an answer stays on screen. */
 export const ANSWER_VISIBLE_MS = 15_000;
+
+/**
+ * One ingredient line, e.g. "250 g Plain flour" or "2 Egg", for the recipe's base servings.
+ * Same format and rounding as the server's metric display (server/scaling.js).
+ */
+export function ingredientLine(ingredient: Ingredient): string {
+  const {base_amount: amount, base_unit: unit, name} = ingredient;
+  const rounded = Number.isInteger(amount) ? amount : Number(amount.toFixed(1));
+  const line = unit === 'unit' ? `${rounded} ${name}` : `${rounded} ${unit} ${name}`;
+  return ingredient.optional ? `${line} (optional)` : line;
+}

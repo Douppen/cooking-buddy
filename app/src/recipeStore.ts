@@ -1,7 +1,7 @@
-// Recipes this device owns: ones the AI wrote ("I want to cook carbonara") and library
-// recipes the AI edited for this cook ("I don't have buttermilk"). Kept in localStorage,
-// so they survive reloads; the server doesn't store them. Storage can be unavailable or
-// cleared at any time, so every access is guarded and the app works without it.
+// The cook's recipes: ones the AI wrote ("carbonara for 4"), with any voice edits ("I
+// don't have buttermilk") saved over them. Kept in localStorage, so they survive reloads;
+// the server doesn't store them. Storage can be unavailable or cleared at any time, so
+// every access is guarded and the app works without it.
 
 import type {Recipe} from './api';
 

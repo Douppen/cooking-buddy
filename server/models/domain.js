@@ -52,7 +52,7 @@ export const RecipeSchema = z.object({
   origin: z
     .enum(["library", "generated"])
     .default("library")
-    .describe("'library' = a file in recipes/; 'generated' = written by the AI for a cook"),
+    .describe("'generated' = written by the AI for a cook; 'library' = from the removed server recipe files (older saved recipes)"),
   edits: z
     .array(z.string())
     .default([])

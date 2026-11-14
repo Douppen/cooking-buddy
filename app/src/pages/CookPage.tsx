@@ -1,59 +1,30 @@
-import {useEffect, useState} from 'react';
 import {Page, ScrollView, TextStyle, TextView} from '@wearables-ui-toolkit/mrbd';
 import {useParams} from 'react-router-dom';
-import {RecipeNotFoundError, type Recipe} from '../api';
 import {Cooking} from '../Cooking';
 import {useRecipes} from '../RecipesContext';
 
-type Load = {status: 'loading'} | {status: 'ready'; recipe: Recipe} | {status: 'missing'} | {status: 'error'};
-
-// The cooking screen for one recipe. No header: the glance screen is the whole display.
+// The cooking screen for one recipe saved on this device. No header (an empty one still
+// draws a chip over the content): the two views, ingredients and steps, use the whole display.
 export function CookPage() {
   const {id = ''} = useParams();
-  const {getRecipe, saveRecipe} = useRecipes();
-  const [load, setLoad] = useState<Load>({status: 'loading'});
+  const {recipes, saveRecipe} = useRecipes();
+  const recipe = recipes.find(r => r.recipe_id === id);
 
-  // An edit keeps the recipe id, so the cooking screen stays mounted and keeps its step.
-  const changeRecipe = (recipe: Recipe) => {
-    saveRecipe(recipe);
-    setLoad({status: 'ready', recipe});
-  };
-
-  useEffect(() => {
-    let current = true;
-    setLoad({status: 'loading'});
-    getRecipe(id)
-      .then(recipe => current && setLoad({status: 'ready', recipe}))
-      .catch(err => {
-        if (!current) return;
-        if (!(err instanceof RecipeNotFoundError)) console.error('Loading the recipe failed:', err);
-        setLoad({status: err instanceof RecipeNotFoundError ? 'missing' : 'error'});
-      });
-    return () => {
-      current = false;
-    };
-  }, [id, getRecipe]);
-
-  if (load.status === 'ready') {
+  // An edit keeps the recipe id, so the cooking screen stays mounted and keeps its view.
+  if (recipe) {
     return (
-      <Page enableSystemBarInset={false}>
-        <Cooking key={load.recipe.recipe_id} recipe={load.recipe} onRecipeChange={changeRecipe} />
+      <Page showHeader={false} enableSystemBarInset={false}>
+        <Cooking key={recipe.recipe_id} recipe={recipe} onRecipeChange={saveRecipe} />
       </Page>
     );
   }
 
-  const message =
-    load.status === 'loading'
-      ? 'Getting the recipe…'
-      : load.status === 'missing'
-        ? "That recipe isn't here anymore."
-        : "Can't reach the kitchen. Check the connection.";
   return (
-    <Page enableSystemBarInset={false}>
+    <Page showHeader={false} enableSystemBarInset={false}>
       <ScrollView tabIndex={0} ariaLabel="Recipe">
         <div className="content-inset">
           <TextView as="p" textStyle={TextStyle.BODY2}>
-            {message}
+            That recipe isn't here anymore.
           </TextView>
         </div>
       </ScrollView>

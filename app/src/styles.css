@@ -27,7 +27,7 @@ body {
   padding: var(--uit-spacing-large);
 }
 
-/* Cooking screen: the step (or answer) fills the space, the ask field sits at the bottom. */
+/* A screen with content that fills the space and a field at the bottom (New recipe). */
 .action-page-shell {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
@@ -39,4 +39,58 @@ body {
 .ask-dock {
   min-inline-size: 0;
   padding: 0 var(--uit-spacing-large) var(--uit-spacing-large);
+}
+
+/* Cooking screen: the ingredients / steps pager fills the space; the answer (when there is
+   one) and the ask field sit below it, shared by both views. */
+.cooking-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  block-size: 100%;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.cooking-views {
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.recipe-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--uit-spacing-xsmall);
+}
+
+.recipe-heading h1 {
+  margin: 0;
+}
+
+.recipe-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--uit-spacing-large);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-list--tight {
+  gap: var(--uit-spacing-small);
+}
+
+.recipe-list p {
+  margin: 0;
+}
+
+.answer-dock:not(:empty) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--uit-spacing-xsmall);
+  min-inline-size: 0;
+  padding: 0 var(--uit-spacing-large) var(--uit-spacing-medium);
+}
+
+.answer-dock p {
+  margin: 0;
 }

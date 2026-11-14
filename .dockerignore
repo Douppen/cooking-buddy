@@ -11,3 +11,4 @@ server/ask-check.js
 *.md
 .DS_Store
 server/*.test.js
+server/fixtures

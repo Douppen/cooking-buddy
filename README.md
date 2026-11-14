@@ -3,11 +3,12 @@
 Hands-free recipe steps and answers on Meta Ray-Ban Display glasses, driven by the Neural
 Band. Live at **https://cook.simonnars.com**.
 
-"Glance + ask": pick a recipe from a short list, then the display shows only the current
-step as one line and a small step counter. Swipe to move between steps. Pinch the ask field and ask by voice ("how much
-butter?"): a short answer that knows the current step briefly replaces the step and is read
-aloud. Say "I don't have buttermilk" and the AI edits the recipe for you, or pick "Cook
-something new", name any dish, and the AI writes a classic recipe for it.
+"Glance + ask": pick "Cook something new", name any dish, and the AI writes a classic
+recipe for it (it's saved on the glasses for next time). Cooking opens on the ingredients;
+swipe right for all the steps in one list, swipe left to go back, and swipe up and down to
+scroll. Pinch the ask field and ask by voice ("how much butter?"): a short answer about the
+whole recipe shows above the field and is read aloud. Say "I don't have buttermilk" and the
+AI edits the recipe for you.
 
 ## Layout
 
@@ -21,7 +22,7 @@ One container serves everything, so the app and its API share one origin. The pl
 port the app to a native Meta glasses app later, reusing the same API. [CLAUDE.md](CLAUDE.md)
 has the rules that keep that port cheap.
 
-- **API, recipes and server internals:** [server/README.md](server/README.md)
+- **API and server internals:** [server/README.md](server/README.md)
 - **Project rules and decisions** (AI setup, porting, deploy safety): [CLAUDE.md](CLAUDE.md)
 
 ## Develop

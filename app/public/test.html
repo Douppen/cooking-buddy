@@ -26,7 +26,7 @@
     .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
     label { display: block; font-weight: 600; font-size: 0.9rem; margin: 12px 0 4px; }
     label:first-child { margin-top: 0; }
-    select, input[type=number], textarea {
+    select, input[type=number], input[type=text], textarea {
       width: 100%; font: inherit; color: var(--text); background: var(--bg);
       border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
     }
@@ -55,9 +55,14 @@
   <div class="muted" id="status">Checking the AI…</div>
 
   <div class="panel">
+    <label for="dish">Write a recipe (calls Gemini, ~6–8 s)</label>
+    <div class="row">
+      <div><input id="dish" type="text" placeholder="carbonara for 4" /></div>
+      <div><button type="button" id="write">Write it</button></div>
+    </div>
     <div class="row">
       <div>
-        <label for="recipe">Recipe</label>
+        <label for="recipe">Recipe (saved on this device)</label>
         <select id="recipe"></select>
       </div>
       <div>
@@ -65,7 +70,7 @@
         <input id="servings" type="number" min="1" max="100" />
       </div>
     </div>
-    <label for="step">Current step</label>
+    <label for="step">Asking about</label>
     <select id="step"></select>
 
     <label for="question">Question</label>
@@ -91,11 +96,15 @@
 <script>
   const $ = (id) => document.getElementById(id);
   const presets = [
-    "How much butter?",
-    "What can I use instead of buttermilk?",
-    "Is it okay if the batter is lumpy?",
-    "Is this ready to flip?",
+    "How long does this take?",
+    "What can I use instead of eggs?",
+    "Do I need everything on the list?",
+    "Is this done?",
   ];
+  // Same storage as the glasses app (app/src/recipeStore.ts), so recipes written in the app
+  // on this browser show up here, and recipes written here show up in the app.
+  const STORE_KEY = "cooking-buddy:recipes:v1";
+  let recipes = [];
   let recipe = null;
   let photo = null; // { mime_type, data }
 
@@ -112,19 +121,70 @@
     }
   }
 
-  async function loadRecipes() {
-    const list = await (await fetch("/api/recipes")).json();
-    $("recipe").innerHTML = list.map((r) => `<option value="${r.recipe_id}">${r.title}</option>`).join("");
-    await selectRecipe(list[0]?.recipe_id);
+  function readStore() {
+    try {
+      return JSON.parse(localStorage.getItem(STORE_KEY) ?? "{}");
+    } catch {
+      return {};
+    }
   }
 
-  async function selectRecipe(id) {
-    if (!id) return;
-    recipe = await (await fetch(`/api/recipes/${id}`)).json();
-    $("servings").value = recipe.base_servings;
-    $("step").innerHTML = recipe.steps
-      .map((s, i) => `<option value="${i}">${i + 1}. ${s.title}: ${s.instruction}</option>`)
+  function loadRecipes(selectId) {
+    recipes = Object.values(readStore()).sort((a, b) => b.savedAt - a.savedAt).map((e) => e.recipe);
+    $("recipe").innerHTML = recipes.length
+      ? recipes.map((r) => `<option value="${escape(r.recipe_id)}">${escape(r.title)}</option>`).join("")
+      : `<option value="">No recipes yet: write one above</option>`;
+    selectRecipe(selectId ?? recipes[0]?.recipe_id);
+  }
+
+  function selectRecipe(id) {
+    recipe = recipes.find((r) => r.recipe_id === id) ?? null;
+    if (id) $("recipe").value = id;
+    $("servings").value = recipe?.base_servings ?? "";
+    const steps = (recipe?.steps ?? [])
+      .map((s, i) => `<option value="${i}">Step ${i + 1}. ${escape(s.title)}: ${escape(s.instruction)}</option>`)
       .join("");
+    $("step").innerHTML = `<option value="">The whole recipe (like the glasses app)</option>${steps}`;
+  }
+
+  async function writeRecipe() {
+    const request = $("dish").value.trim();
+    if (!request) return;
+    $("write").disabled = true;
+    $("write").textContent = "Writing…";
+    const started = performance.now();
+    try {
+      const res = await fetch("/api/recipes/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ request }),
+      });
+      const data = await res.json();
+      const total = Math.round(performance.now() - started);
+      if (!res.ok) {
+        addEntry(`<p class="answer error">${res.status}: ${escape(data.error)}</p><div class="muted">writing ${escape(request)}, ${total} ms</div>`);
+        return;
+      }
+      const store = readStore();
+      store[data.recipe.recipe_id] = { recipe: data.recipe, savedAt: Date.now() };
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(store));
+      } catch {}
+      recipes = recipes.filter((r) => r.recipe_id !== data.recipe.recipe_id);
+      loadRecipes(data.recipe.recipe_id);
+      if (!recipe) {
+        // Storage refused it: keep it for this page only.
+        recipes.unshift(data.recipe);
+        selectRecipe(data.recipe.recipe_id);
+      }
+      addEntry(`<p class="answer">Wrote “${escape(data.recipe.title)}”: ${data.recipe.ingredients.length} ingredients, ${data.recipe.steps.length} steps</p><div class="muted">${total} ms total, ${data.ms} ms in ${escape(data.model)}</div>`);
+      $("dish").value = "";
+    } catch (err) {
+      addEntry(`<p class="answer error">Request failed: ${escape(err.message)}</p>`);
+    } finally {
+      $("write").disabled = false;
+      $("write").textContent = "Write it";
+    }
   }
 
   // Shrink photos to at most 1024 px on the long side before sending (about 100–200 KB).
@@ -163,6 +223,10 @@
   });
 
   $("recipe").addEventListener("change", (e) => selectRecipe(e.target.value));
+  $("write").addEventListener("click", writeRecipe);
+  $("dish").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); writeRecipe(); }
+  });
   $("presets").innerHTML = presets.map((q) => `<button type="button">${q}</button>`).join("");
   $("presets").addEventListener("click", (e) => {
     if (e.target.tagName === "BUTTON") $("question").value = e.target.textContent;
@@ -188,7 +252,7 @@
     if (!question || !recipe) return;
     const body = {
       recipe,
-      step_index: Number($("step").value),
+      ...($("step").value === "" ? {} : { step_index: Number($("step").value) }),
       question,
       servings: Number($("servings").value) || undefined,
       ...(photo ? { image: photo } : {}),
@@ -204,7 +268,8 @@
       });
       const data = await res.json();
       const total = Math.round(performance.now() - started);
-      const context = `${escape(question)}${photo ? " (with photo)" : ""}, step ${body.step_index + 1}, ${body.servings} servings`;
+      const about = body.step_index === undefined ? "whole recipe" : `step ${body.step_index + 1}`;
+      const context = `${escape(question)}${photo ? " (with photo)" : ""}, ${about}, ${body.servings} servings`;
       if (!res.ok) {
         const issues = data.issues ? `: ${data.issues.map((i) => `${i.path} ${i.message}`).join("; ")}` : "";
         addEntry(`<p class="answer error">${res.status}: ${escape(data.error)}${escape(issues)}</p><div class="muted">${context}, ${total} ms</div>`);

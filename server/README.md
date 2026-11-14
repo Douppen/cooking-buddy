@@ -1,10 +1,10 @@
 # Cooking Buddy server
 
-Backend for Cooking Buddy on Meta Ray-Ban Display glasses. It serves the glasses web app,
-holds the library recipes and their scaling, and uses Gemini to answer questions about the
-current step, edit a recipe on request and write new recipes. The server is stateless:
-the current step and AI-written recipes live in the app (`app/src/cookingState.ts`,
-`app/src/recipeStore.ts`), which sends the whole recipe with every request. The glasses app stays thin so a future native
+Backend for Cooking Buddy on Meta Ray-Ban Display glasses. It serves the glasses web app
+and uses Gemini to write recipes, answer questions about a recipe and edit it on request.
+It has no built-in recipes and is stateless: the recipes the AI wrote and the screen state
+live in the app (`app/src/recipeStore.ts`, `app/src/cookingState.ts`), which sends the
+whole recipe with every request. The glasses app stays thin so a future native
 app can call the same endpoints (see the repo's `CLAUDE.md`). For running the whole project
 and deploying, see the [root README](../README.md).
 
@@ -56,14 +56,13 @@ server/
 │   └── recipeFormat.js # Recipe JSON schema and writing rules shared by both
 ├── models/
 │   └── domain.js      # Recipe, ingredient and step schemas (Zod), AI drafts, toRecipe()
-├── recipes/           # Recipe JSON files, validated against RecipeSchema at startup
+├── fixtures/          # A fixed test recipe for npm test and npm run ask (not served)
 ├── scaling.js         # Pure functions: scale to servings, metric/imperial display amounts
-├── recipes.js         # Loads recipes/, GET /api/recipes and /api/recipes/:id
 ├── ask.js             # POST /api/ask: request schema, then ai/answer.js and toRecipe()
 ├── generate.js        # POST /api/recipes/generate: request schema, then ai/generate.js
 ├── http.js            # readJsonRequest(), sendJson, clientIp, per-IP rate limiter
 ├── server.js          # HTTP server: routes, static app files, /up health check
-├── unit.test.js       # npm test: recipes, scaling, prompts, AI drafts, request validation
+├── unit.test.js       # npm test: test recipe, scaling, prompts, AI drafts, request validation
 ├── smoke.js           # npm run smoke: HTTP checks against a running server
 ├── ask-check.js       # npm run ask: real questions through /api/ask (calls Gemini)
 └── package.json
@@ -76,10 +75,8 @@ server/
 | Route | What it does |
 | --- | --- |
 | `GET /up` | Health check for Kamal and Docker, answers `OK` |
-| `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up }, recipes }`. Free: never calls the model |
-| `GET /api/recipes` | `[{ recipe_id, title, base_servings, step_count }]` |
-| `GET /api/recipes/:id` | One full recipe (matches `RecipeSchema`), or 404 |
-| `POST /api/ask` | `{ recipe, step_index, question, servings?, image? }` → `{ answer, model, ms }`, plus `{ recipe, change_summary }` when it changed the recipe |
+| `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up } }`. Free: never calls the model |
+| `POST /api/ask` | `{ recipe, question, step_index?, servings?, image? }` → `{ answer, model, ms }`, plus `{ recipe, change_summary }` when it changed the recipe |
 | `POST /api/recipes/generate` | `{ request: "carbonara for 4", servings? }` → `{ recipe, model, ms }`: a classic recipe with `origin: "generated"`. Not stored on the server. 10 requests per minute per IP |
 | `GET /*` | The built glasses app; unknown paths without an extension get `index.html`, missing assets 404. `/test.html` is a browser page for trying `/api/ask` |
 
@@ -88,7 +85,9 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 ### `POST /api/ask` in detail
 
 - `recipe`: the full recipe object (the client sends it, so the server needs no session).
-- `step_index`: 0-based and must be less than `recipe.steps.length`.
+- `step_index`: optional. Leave it out for a question about the whole recipe; the glasses
+  web app always does, since the cook sees all the steps at once. When given, it's 0-based,
+  must be less than `recipe.steps.length`, and the answer focuses on that step.
 - `question`: 1–500 characters after trimming.
 - `servings`: integer from 1 to 100, default `recipe.base_servings`.
 - `image`: `{ mime_type: "image/jpeg" | "image/png" | "image/webp", data }`, where `data` is
@@ -109,30 +108,14 @@ a minute per IP, and a backup request after 15 s (30 s per attempt).
 
 ---
 
-## Adding a recipe
-
-Drop a JSON file in `recipes/` that matches `RecipeSchema` (`models/domain.js`). It shows
-up in the glasses app's recipe list after the next deploy, sorted by file name. See
-`buttermilk-pancakes.json` (there are four so far). Rules:
-
-- `recipe_id` is lowercase letters, digits and dashes (the `/api/recipes/:id` route only
-  matches `[a-z0-9-]+`).
-- Amounts are for `base_servings`, in `g`, `ml` or `unit` (a count, such as eggs).
-- Steps have an `index`, a short `title`, an `instruction` of about 15 words or fewer for the
-  HUD, optional `visual_cues` and an optional `timer_sec`.
-
-Files are validated at startup. An invalid recipe stops the server, so it fails the deploy's
-health check instead of failing on a user. `npm test` catches it first.
-
----
-
 ## File responsibilities
 
 ### `models/domain.js` (recipe schema)
 
-The **Zod** recipe schema, used for recipe files, requests and AI output: base metric units
+The **Zod** recipe schema, used for requests and AI output: base metric units
 (`g`, `ml`, `unit`), substitutes, optional ingredients, short step instructions, visual
-cues, timers, `origin` (`library` / `generated`) and `edits`. Also `RecipeDraftSchema` (a
+cues, timers, `origin` (`generated`; `library` only on recipes saved before the built-in
+recipes were removed) and `edits`. Also `RecipeDraftSchema` (a
 recipe as the AI writes it, without ids) and `toRecipe()`, which turns a draft into a valid
 Recipe.
 
@@ -143,10 +126,6 @@ servings / base servings, and `convertUnitSystem()` turns them into display amou
 metric or imperial with practical cooking rounding (oz/lbs for grams, fl oz/cups for
 millilitres, counts unchanged). The answer prompt uses it, and so should a future
 "scale servings" feature.
-
-### `recipes.js` (recipe store)
-
-Reads and validates every `recipes/*.json` once at startup and keeps them in memory.
 
 ### `ai/` (everything that calls Gemini)
 
@@ -165,8 +144,8 @@ text.
   starts one backup call and uses whichever finishes first. Use it for every user-facing
   AI call.
 - **`answer.js`**: `answerQuestion()` builds the prompt (`recipeContext()`: amounts scaled to
-  the requested servings with `scaling.js`, substitutes, optional ingredients, earlier edits, the current step
-  marked, plus the recipe as JSON) and asks Gemini with reasoning level `LOW` for structured
+  the requested servings with `scaling.js`, substitutes, optional ingredients, earlier edits, all
+  steps, the current step marked only when the request has `step_index`, plus the recipe as JSON) and asks Gemini with reasoning level `LOW` for structured
   JSON: a 1–2 sentence `answer`, and, only when the cook asked for a change, a
   `change_summary` and the whole updated recipe as a draft. `ask.js` turns that draft into a
   Recipe with `toRecipe()`, keeping the recipe id and the ids of unchanged ingredients. It

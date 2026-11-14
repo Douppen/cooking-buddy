@@ -1,18 +1,20 @@
 // Fast checks that need no server and no Gemini: `npm test` (node's built-in test runner).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { convertUnitSystem, scaleIngredients } from "./scaling.js";
-import { getRecipe, listRecipes } from "./recipes.js";
-import { toRecipe } from "./models/domain.js";
+import { RecipeSchema, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
 import { recipeContext } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
 
-const recipe = getRecipe("buttermilk-pancakes");
+// A fixed test recipe; the app itself has no built-in recipes (the AI writes them).
+const recipe = RecipeSchema.parse(
+  JSON.parse(readFileSync(new URL("./fixtures/buttermilk-pancakes.json", import.meta.url), "utf8")),
+);
 
-test("recipe files load and validate", () => {
-  assert.ok(listRecipes().length >= 1);
+test("test recipe validates", () => {
   assert.equal(recipe.title, "Buttermilk Pancakes");
 });
 
@@ -26,23 +28,27 @@ test("scaling and unit conversion", () => {
   assert.equal(convertUnitSystem(scaleIngredients([milk], 1), "imperial")[0].display, "2.03 cups Buttermilk");
 });
 
-test("answer prompt scales amounts and marks the current step", () => {
-  const text = recipeContext(recipe, 2, 2);
-  assert.match(text, /making 2 servings/);
-  assert.match(text, /- 125 g Plain flour/);
-  assert.match(text, /- 1 Egg/);
-  assert.equal(text.match(/<- CURRENT STEP/g).length, 1);
-  assert.match(text, /^3\. .*<- CURRENT STEP$/m);
+test("answer prompt scales amounts, all steps, and a current step only when given", () => {
+  const whole = recipeContext(recipe, undefined, 2);
+  assert.match(whole, /making 2 servings/);
+  assert.match(whole, /- 125 g Plain flour/);
+  assert.match(whole, /- 1 Egg/);
+  assert.equal(whole.match(/^\d+\. /gm).length, recipe.steps.length);
+  assert.doesNotMatch(whole, /CURRENT STEP/);
+  const onStep = recipeContext(recipe, 2, 2);
+  assert.equal(onStep.match(/<- CURRENT STEP/g).length, 1);
+  assert.match(onStep, /^3\. .*<- CURRENT STEP$/m);
 });
 
 test("ask request validation", () => {
+  assert.ok(AskRequestSchema.safeParse({ recipe, question: "How much butter?" }).success);
   assert.ok(AskRequestSchema.safeParse({ recipe, step_index: 0, question: "How much butter?" }).success);
   assert.equal(AskRequestSchema.safeParse({ recipe, step_index: 99, question: "x" }).success, false);
   assert.equal(AskRequestSchema.safeParse({ recipe, step_index: 0, question: "  " }).success, false);
 });
 
 test("AI drafts become valid recipes", () => {
-  // A library recipe survives a round trip through the AI's draft format unchanged.
+  // A recipe survives a round trip through the AI's draft format unchanged.
   const roundTrip = toRecipe(recipeToDraft(recipe), {
     recipe_id: recipe.recipe_id,
     origin: recipe.origin,

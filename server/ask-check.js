@@ -8,7 +8,8 @@ const args = process.argv.slice(2);
 const imageFlag = args.indexOf("--image");
 const imagePath = imageFlag >= 0 ? args.splice(imageFlag, 2)[1] : null;
 const base = args[0] ?? "http://localhost:8787";
-const recipe = JSON.parse(readFileSync(new URL("./recipes/buttermilk-pancakes.json", import.meta.url)));
+// A fixed test recipe (the app has no built-in recipes; the AI writes them).
+const recipe = JSON.parse(readFileSync(new URL("./fixtures/buttermilk-pancakes.json", import.meta.url)));
 
 const image = imagePath && {
   mime_type: { ".png": "image/png", ".webp": "image/webp" }[extname(imagePath).toLowerCase()] ?? "image/jpeg",
@@ -18,10 +19,13 @@ const image = imagePath && {
 const questions = image
   ? [{ step_index: 5, question: "Is this pancake ready to flip?", image }]
   : [
-      { step_index: 2, question: "How much butter?" },
-      { step_index: 0, question: "What can I use instead of buttermilk?" },
+      // Whole-recipe questions, as the glasses app asks them (no step_index).
+      { question: "How much butter?" },
+      { question: "What can I use instead of buttermilk?" },
+      { question: "How long does this take in total?" },
+      { question: "How much butter if I make 2 servings?", servings: 2 },
+      // A question about one step still works for clients that send step_index.
       { step_index: 3, question: "Is it okay if the batter is lumpy?" },
-      { step_index: 2, question: "How much butter if I make 2 servings?", servings: 2 },
     ];
 
 for (const q of questions) {

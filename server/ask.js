@@ -5,7 +5,9 @@
 //
 // Request (JSON):
 //   recipe       a recipe matching RecipeSchema (models/domain.js)
-//   step_index   0-based position in recipe.steps of the step on screen
+//   step_index   optional: 0-based position in recipe.steps of the step the cook is on.
+//                Leave it out for a question about the whole recipe (the web app does:
+//                the cook sees all the steps at once).
 //   question     what the cook asked, as text
 //   servings     optional: servings the cook is making (default recipe.base_servings)
 //   image        optional: { mime_type: "image/jpeg" | "image/png" | "image/webp", data: base64 }
@@ -29,7 +31,7 @@ const allowRequest = createRateLimiter(30); // per client IP: the endpoint is pu
 export const AskRequestSchema = z
   .object({
     recipe: RecipeSchema,
-    step_index: z.number().int().nonnegative(),
+    step_index: z.number().int().nonnegative().optional(),
     question: z.string().trim().min(1).max(500),
     servings: z.number().int().positive().max(100).optional(),
     image: z
@@ -42,7 +44,7 @@ export const AskRequestSchema = z
       })
       .optional(),
   })
-  .refine((r) => r.step_index < r.recipe.steps.length, {
+  .refine((r) => r.step_index === undefined || r.step_index < r.recipe.steps.length, {
     message: "step_index is past the last step",
     path: ["step_index"],
   });

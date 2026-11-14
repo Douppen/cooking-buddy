@@ -8,35 +8,36 @@ Live at https://cook.simonnars.com.
 
 ## The prototype: "Glance + ask"
 
-Keep the glasses UI minimal. It's a glance at one line, not a phone screen on your face.
+Keep the glasses UI simple: plain text lists you scroll, not a phone screen on your face.
 
-- **First, pick a recipe** (`/`): a "Recipes" list, one row per recipe. Recipes the AI wrote
-  for this cook come first, then the library (`GET /api/recipes`; an edited one says "Your
-  version"), then a last row, **"Cook something new"**. Pinch opens a row; the system Back
-  gesture returns to the list.
+- **First, pick a recipe** (`/`): a "Recipes" list of the recipes the AI wrote for this cook,
+  most recent first, then a last row, **"Cook something new"**. There are no built-in
+  recipes. Pinch opens a row; the system Back gesture returns to the list.
 - **Cook something new** (`/new`): the cook says a dish ("carbonara for 4") and the AI writes
   a classic recipe (`POST /api/recipes/generate`, ~6–8 s), then cooking starts.
-- **Then cook** (`/cook/:id`). The HUD shows only the current step's instruction as one
-  line, plus a small step counter ("3/6"). No header, ingredient list, panels or buttons.
-- **Swipe** (`next` / `prev`) moves between steps. **Pinch** (`select`) on the ask field asks
-  by voice through the glasses' dictation.
-- **The answer briefly replaces the step** on the HUD and is read aloud, then the step comes
-  back. The answer knows the recipe and the current step (`/api/ask`).
+- **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
+  (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
+  steps** in one list; swiping right again does nothing. **Swipe left** (`prev`) goes back
+  to the ingredients, and no further. Swipe up/down scrolls the list; past its end, focus
+  moves to the ask field.
+- **Pinch** (`select`) on the ask field asks by voice through the glasses' dictation. The
+  field sits under both views. Questions are about **the whole recipe**, not one step: the
+  app sends no `step_index` to `/api/ask`.
+- **The answer shows above the ask field** on either view for 15 s and is read aloud.
 - **Saying "I don't have X" or "can I skip X" edits the recipe**: the AI makes the smallest
-  change, rewrites the affected steps, and the HUD says "RECIPE UPDATED" with what changed
-  (~6–8 s). The cook stays on the same step. "Do I need X?" answers, and marks X optional
-  when the dish works without it.
-- **Recipes the AI wrote or edited live on the device** (`localStorage`, see
-  `app/src/recipeStore.ts`), not on the server. Editing a library recipe makes a device-only
-  "Your version" under the same id; the server's recipe file never changes.
+  change, rewrites the affected ingredients and steps, and the answer is labelled "RECIPE
+  UPDATED" with what changed (~6–8 s). Both lists show the new recipe; the cook stays on the
+  same view. "Do I need X?" answers, and marks X optional when the dish works without it.
+- **Recipes live on the device** (`localStorage`, see `app/src/recipeStore.ts`), not on the
+  server. An edit replaces the saved recipe under the same id.
 
-Nice to have, only once that works: timers per step, scaling servings, a way to reset an
-edited recipe to the original. Add them without breaking the one-line rule.
+Nice to have, only once that works: timers per step, scaling servings, undoing an edit.
+Keep them as plain text in the two lists.
 
-App code: `main.tsx` (router), `RecipesContext.tsx` (server and saved recipes, kept across
-screens), `recipeStore.ts` (device storage), `pages/` (one file per screen), `Cooking.tsx`
-(the cooking screen), `cookingState.ts` (step, ask and edit logic, free of React: the spec
-for the native port).
+App code: `main.tsx` (router), `RecipesContext.tsx` (the recipes saved on this device, kept
+across screens), `recipeStore.ts` (device storage), `pages/` (one file per screen),
+`Cooking.tsx` (the cooking screen), `cookingState.ts` (view, ask and edit logic, free of
+React: the spec for the native port).
 
 ## The plan: web app now, native app later
 
@@ -49,18 +50,20 @@ for the native port).
 
 Build everything so that port is cheap:
 
-- **Brains on the server, thin client.** Recipes (structured JSON), scaling servings and AI
-  answers live in `server/` behind plain JSON HTTP endpoints under `/api`. The native app
-  will call the same endpoints. The web app only renders the current screen and sends user
-  actions. `/api/ask` takes the recipe, the current step and the question, and returns a
-  short answer (plus the whole updated recipe when it changed it).
+- **Brains on the server, thin client.** Writing and editing recipes (structured JSON),
+  scaling servings and AI answers live in `server/` behind plain JSON HTTP endpoints under
+  `/api`. The native app will call the same endpoints. The web app only renders the current
+  screen, keeps the cook's recipes, and sends user actions. `/api/ask` takes the recipe and
+  the question (and optionally a step), and returns a short answer (plus the whole updated
+  recipe when it changed it).
 - **Design screens for the native display.** Native apps re-send the whole screen on
   every update over Bluetooth (no partial updates), at 600×600, built from text, images,
-  buttons, lists and flex boxes. So: one step per screen, simple layouts, small images,
-  and nothing that updates every second (show "done at 15:42" or update once a minute
+  buttons, lists and flex boxes. So: two plain views per recipe (ingredients, steps),
+  simple layouts, small images, and nothing that updates every second (show "done at 15:42" or update once a minute
   rather than a ticking countdown).
 - **Input as actions, not keys.** On the web, `ArrowLeft` / `ArrowRight` / `Enter` map to
-  `prev` / `next` / `select`. Native touchpad and Neural Band events will map to the same
+  `prev` / `next` / `select` (`ArrowUp` / `ArrowDown` scroll, through the toolkit's focus
+  navigation). Native touchpad and Neural Band events will map to the same
   actions. Keep step and state logic in plain TypeScript, free of React and the DOM, so it
   reads like a spec for the Swift/Kotlin version.
 - **Voice is text in, text out.** The web app gets text from the glasses' dictation
@@ -82,9 +85,10 @@ Build everything so that port is cheap:
   User" role. In production its JSON key arrives base64-encoded as `GOOGLE_CREDENTIALS_B64`
   (base64 because Kamal's env files double backslashes and would break the JSON). Locally,
   point `GOOGLE_APPLICATION_CREDENTIALS` at the JSON key file.
-- **Request:** `{ recipe, step_index, question, servings?, image? }`, where `recipe` matches
+- **Request:** `{ recipe, question, step_index?, servings?, image? }`, where `recipe` matches
   `RecipeSchema` in `server/models/domain.js` and `image` is `{ mime_type, data }` with
-  base64 data (JPEG/PNG/WebP; shrink photos to about 1 megapixel first). **Response:**
+  base64 data (JPEG/PNG/WebP; shrink photos to about 1 megapixel first). Without
+  `step_index` the answer covers the whole recipe; the web app never sends one. **Response:**
   `{ answer, model, ms }`, plus `{ recipe, change_summary }` when the cook's words changed
   the recipe. Answers are 1–2 sentences, plain text, meant to be shown and spoken.
 - **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara for 4" }` returns
@@ -93,7 +97,8 @@ Build everything so that port is cheap:
 - **Recipe format for the AI:** Gemini writes a "draft" (`RecipeDraftSchema`: no ids or step
   indexes) as structured JSON (`server/ai/recipeFormat.js`), and `toRecipe()` in
   `models/domain.js` turns it into a valid `Recipe`. Ingredients have `optional`; recipes
-  have `origin` (`library` / `generated`) and `edits` (short notes on AI changes). Don't put
+  have `origin` (`generated`; `library` only on recipes saved before the built-in ones were
+  removed) and `edits` (short notes on AI changes). Don't put
   `minItems`/`maxItems` in the Gemini schema: on both lists together Gemini rejects it as
   INVALID_ARGUMENT; Zod enforces list lengths instead.
 - Typical times: a question 1.5–2.5 s, an edit 6–8.5 s (Gemini rewrites the whole recipe),
@@ -110,11 +115,11 @@ Build everything so that port is cheap:
 ```
 app/      Glasses web app: React + Vite + @wearables-ui-toolkit/mrbd. Built to static files.
 server/   Node server: serves app/dist, health at /up, API under /api (zod for validation).
-          ask.js = /api/ask, generate.js = /api/recipes/generate, recipes.js = /api/recipes,
-          http.js = shared request handling, ai/ = everything that calls Gemini (gemini.js =
-          shared client, warm-up, withBackup; one file per task), models/domain.js = recipe
-          schema, recipes/ = recipe JSON files, scaling.js = servings and units.
-          Stateless: step state and AI-written recipes live in the app (server/README.md).
+          ask.js = /api/ask, generate.js = /api/recipes/generate, http.js = shared request
+          handling, ai/ = everything that calls Gemini (gemini.js = shared client, warm-up,
+          withBackup; one file per task), models/domain.js = recipe schema, scaling.js =
+          servings and units, fixtures/ = a test recipe for npm test and npm run ask.
+          Stateless, no recipes: the app keeps the cook's recipes (server/README.md).
 config/   Kamal deploy config.   .kamal/secrets reads secrets from the environment.
 .github/  Deploy workflow and the pinned SSH host key of the server.
 ```
@@ -126,15 +131,15 @@ cd server && npm install && npm start   # :8787, serves app/dist if built
 cd app && npm run dev           # :5173, proxies /api to :8787
 cd app && npm run build         # typecheck + production build
 cd server && npm run smoke      # smoke test; add -- https://cook.simonnars.com for prod
-cd server && npm test           # unit tests: recipes, scaling, prompts, AI drafts, validation
+cd server && npm test           # unit tests: scaling, prompts, AI drafts, validation
 cd server && npm run ask        # real questions through /api/ask (calls Gemini, costs ~nothing)
                                 #   add -- https://cook.simonnars.com, or --image photo.jpg
 ```
 
 Testing the AI in a browser (also in production): open `/test.html`
-(https://cook.simonnars.com/test.html). It's a plain dev page, not glasses UI: pick a recipe,
-step and servings, ask a question, optionally add a phone photo, and see the answer and
-timings. `GET /api/status` shows whether Gemini is configured and reachable without
+(https://cook.simonnars.com/test.html). It's a plain dev page, not glasses UI: write a recipe
+or pick one saved in this browser (same storage as the app), ask about the whole recipe or
+one step, optionally add a phone photo, and see the answer and timings. `GET /api/status` shows whether Gemini is configured and reachable without
 spending anything.
 
 To run `/api/ask` locally: `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json npm start`.
@@ -167,6 +172,16 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
   secrets: Google automatically disables service account keys it finds in public code.
 
 ## Porting notes
+
+- The cooking screen (since 2026-11-14) is two views: ingredients, then all steps, each a
+  vertical list. On the web, the toolkit `Pager` slides between them and its focus
+  navigation scrolls a focused `ScrollView` about 60 px per up/down swipe, then moves focus
+  to the ask field. Native: two screens switched by swipe left/right, each a scrolling list
+  (check how far the native list scrolls per swipe); the slide is optional. The earlier
+  one-step HUD with a step counter is in commit `cbecf34` (`app/src/cookingState.ts`).
+- Built-in library recipes (`server/recipes/*.json`, `GET /api/recipes[/:id]`, the "Your
+  version" label) were removed on 2026-11-14: every recipe is AI-written and kept on the
+  device. To bring back a curated library, start from `git show cbecf34:server/recipes.js`.
 
 - A WebSocket relay with rooms (glasses ↔ phone camera page) was removed on 2026-11-14:
   the native phone app makes it unnecessary. If a live demo screen for judges or a remote

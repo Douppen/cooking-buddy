@@ -10,7 +10,10 @@ const SYSTEM_INSTRUCTION = [
   "You are Cooking Buddy, helping someone who is cooking at home.",
   "They wear smart glasses: your answer appears on a small display and is read aloud.",
   "Answer in one or two short sentences, at most 30 words. Plain text only: no markdown, lists or emoji.",
-  "Use the recipe below and focus on the current step. Give amounts for the servings stated, with units.",
+  "Use the recipe below. The cook sees the whole recipe at once, so answer about the whole recipe:",
+  "if the question could apply to several steps or ingredients, cover the ones that matter.",
+  "Only when a step is marked CURRENT STEP, focus on that step.",
+  "Give amounts for the servings stated, with units.",
   "If a photo is attached, it shows what the cook is looking at right now.",
   "If the recipe doesn't cover the question, use common cooking knowledge.",
   "Take food safety seriously and say clearly when something is unsafe.",
@@ -42,7 +45,7 @@ const RESPONSE_JSON_SCHEMA = {
 
 /**
  * @param {import("@google/genai").GoogleGenAI} ai  client from gemini.js
- * @param {{ recipe, step_index: number, question: string, servings?: number,
+ * @param {{ recipe, step_index?: number, question: string, servings?: number,
  *           image?: { mime_type: string, data: string } }} request  a validated /api/ask body
  * @param {AbortSignal} [abortSignal]  cancels the call (used by withBackup in gemini.js)
  * @returns {Promise<{ answer: string, changeSummary: string, draft: object | null }>}
@@ -58,7 +61,9 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
       `Recipe JSON (amounts for base_servings ${recipe.base_servings}):`,
       JSON.stringify(recipeToDraft(recipe)),
       "",
-      `The cook is on step ${step_index + 1} of ${recipe.steps.length}.`,
+      step_index === undefined
+        ? "The cook is looking at the whole recipe."
+        : `The cook is on step ${step_index + 1} of ${recipe.steps.length}.`,
       `The cook says: ${question}`,
     ].join("\n"),
   });
@@ -92,7 +97,8 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
   return { answer, changeSummary, draft: parsed.recipe && changeSummary ? parsed.recipe : null };
 }
 
-// The recipe as plain text: amounts scaled to `servings`, substitutes, current step marked.
+// The recipe as plain text: amounts scaled to `servings`, substitutes, and the current step
+// marked when there is one (stepIndex undefined = a question about the whole recipe).
 export function recipeContext(recipe, stepIndex, servings) {
   const lines = [`Recipe: ${recipe.title}, making ${servings} servings.`, "Ingredients:"];
   const scaled = convertUnitSystem(scaleIngredients(recipe.ingredients, servings / recipe.base_servings), "metric");
