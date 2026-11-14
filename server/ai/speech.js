@@ -7,7 +7,8 @@
 // encodes it to MP3: ~25-35 KB instead of ~0.3 MB.
 //
 // Who speaks: the British chef on home, and per recipe its cuisine's cook (ai/personas.js:
-// Pankaj, Uncle Wei, Giuseppe, Abuela Rosa, Chef Jacques, Kenji, Auntie Mali).
+// Pankaj, Uncle Wei, Giuseppe, Abuela Rosa, Chef Jacques, Kenji, Auntie Mali,
+// Babushka Olga, Bubba).
 //
 // If Gemini fails or is slow, Google Cloud Text-to-Speech reads it with the persona's plain
 // Chirp 3 HD voice (eu-texttospeech.googleapis.com, about 1 s; the project needs the Cloud

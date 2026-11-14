@@ -13,7 +13,7 @@
 //     dish: what to fetch ("lasagna"); servings: the number the cook said ("for 4", "for six
 //     people"), or null. The app sets its servings setting to it: what the cook says wins.
 //     cuisine: "indian" | "chinese" | "italian" | "mexican" | "french" | "japanese" | "thai"
-//     | "other"; the app saves it on the recipe, and that cuisine's cook reads its answers.
+//     | "eastern_european" | "american" | "other"; the app saves it on the recipe, and that cuisine's cook reads its answers.
 //     handover: what the British chef says when the recipe opens ("Alright, here's your
 //     butter chicken recipe. Now let me hand you over to my expert colleague, Pankaj.").
 //   { kind: "answer", answer, suggestions, model, ms }

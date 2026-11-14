@@ -5,10 +5,18 @@
 // over to my expert colleague, Pankaj") and, for that recipe only, its cuisine's cook reads
 // every answer, change and timer. A cuisine without a cook of its own keeps the chef.
 //
-// Each persona: name (said in the handover), voice (a Gemini prebuilt voice), style (how it
-// speaks, given to Gemini beside the text, never inside it: the model reads the text word for
-// word) and fallback (a plain Chirp 3 HD voice for when Gemini fails). The accents are meant
-// as warm, affectionate characters, the kind of cook you'd love to learn from.
+// Each persona: name (said in the handover), then its character voice, either
+//   voice + style (+ languageCode): a Gemini prebuilt voice; the style says how it speaks
+//     (given beside the text, never inside it: the model reads the text word for word), and
+//     languageCode helps the accent stick (Babushka Olga's "ru-RU"), or
+//   chirp: a native-language Chirp 3 HD voice ({ voice, languageCode?, speakingRate? }),
+// optionally after rewrite: an instruction for Gemini to respell the text the way the cook
+//   pronounces it (Kenji's katakana), for accents a style alone can't make;
+// and fallback: a plain Chirp 3 HD voice reading the original text when the character fails.
+// Picked on 2026-11-15 by ear and with an AI rater (Gemini judging each sample's accent and
+// how easy it is to follow): describing an accent left Kenji, Uncle Wei and Auntie Mali
+// sounding American or British. The accents are meant as warm, affectionate characters, the
+// kind of cook you'd love to learn from.
 
 import { CUISINES } from "../models/domain.js";
 
@@ -30,9 +38,11 @@ export const PERSONAS = {
   },
   chinese: {
     name: "Uncle Wei",
-    voice: "Umbriel",
-    style:
-      "Uncle Wei, a gentle, comforting older Chinese uncle from Guangzhou, speaking English with a strong, thick Cantonese Chinese accent on every word. Slow, calm and kind, like he is cooking for his whole family.",
+    // Respelled, then read by a Mandarin voice. Plain English in that voice, or Gemini told
+    // he's Chinese, sounded American.
+    rewrite:
+      "Respell the English text phonetically, in Latin letters, the way a gentle older man from China with a heavy Chinese accent pronounces it, but keep it understandable: 'th' becomes 'd' or 's' ('the' → 'de', 'then' → 'den'), final consonants are soft or followed by a short 'uh' ('hot' → 'hot-uh', 'wok' → 'wok-uh'), 'r' sometimes becomes 'l', 'v' becomes 'w'. Keep numbers, amounts and units understandable. Keep the punctuation. Output only the respelled text.",
+    chirp: { voice: "cmn-CN-Chirp3-HD-Umbriel" },
     fallback: "en-US-Chirp3-HD-Umbriel",
   },
   italian: {
@@ -51,25 +61,43 @@ export const PERSONAS = {
   },
   french: {
     name: "Chef Jacques",
-    voice: "Schedar",
-    languageCode: "fr-FR",
-    style:
-      "Chef Jacques, a Parisian chef who has always lived in Paris, speaking English with a very heavy French accent: French vowels, French r from the throat, stress on the last syllable, 'h' dropped. Refined, dramatic and a little snooty, very passionate about butter.",
+    // Plain English read by a French voice: the most reliably French (Gemini with fr-FR
+    // varied, and sounded "performed" when asked to be dramatic).
+    chirp: { voice: "fr-FR-Chirp3-HD-Schedar" },
     fallback: "en-US-Chirp3-HD-Schedar",
   },
   japanese: {
     name: "Kenji",
-    voice: "Iapetus",
-    style:
-      "Kenji, a calm, precise chef from Tokyo, speaking English with a strong, thick Japanese accent on every word. Soft-spoken, respectful and focused, with quiet pride in his craft.",
+    // Katakana English read by a Japanese voice, the cook's pick. Content words in katakana,
+    // small everyday words left in English: a little milder and easier to follow than all
+    // katakana, with the quick Japanese rhythm (and a touch faster).
+    rewrite:
+      "Rewrite the English text for a Japanese voice: write the content words (nouns, verbs, adjectives, numbers) in katakana the way a Japanese person pronounces English (e.g. 'cutlet' → カツレツ, 'golden' → ゴールデン, 'minute' → ミニット), but keep the small everyday English words as plain English (the, a, it, is, and, then, for, to, of, before, until). Keep every word, in the same order, separated by spaces; use 、 and 。 for pauses. Output only the text.",
+    chirp: { voice: "ja-JP-Chirp3-HD-Iapetus", speakingRate: 1.06 },
     fallback: "en-US-Chirp3-HD-Iapetus",
   },
   thai: {
     name: "Auntie Mali",
-    voice: "Laomedeia",
-    style:
-      "Auntie Mali, a cheerful street-food cook from Bangkok, speaking English with a strong, thick Thai accent on every word. Bright, bubbly and quick, she loves chilli.",
+    // Plain English read by a Thai voice: clearly Thai and easy to follow.
+    chirp: { voice: "th-TH-Chirp3-HD-Laomedeia" },
     fallback: "en-US-Chirp3-HD-Laomedeia",
+  },
+  eastern_european: {
+    name: "Babushka Olga",
+    voice: "Sulafat",
+    languageCode: "ru-RU",
+    style:
+      "Babushka Olga, a warm, strict and loving grandmother from Eastern Europe who has always lived there, with a very heavy Russian accent: rolled r's, hard consonants, 'th' as 'z' or 'd', 'w' as 'v', no articles. Caring and a little bossy.",
+    // A Polish voice reading English sounds Eastern European on its own.
+    fallback: "pl-PL-Chirp3-HD-Sulafat",
+  },
+  american: {
+    name: "Bubba",
+    voice: "Fenrir",
+    languageCode: "en-US",
+    style:
+      "Bubba, a big, friendly hillbilly from the Appalachian mountains of Tennessee, with a very thick Southern redneck drawl and a nasal twang: long stretched vowels, 'I' as 'ah', dropped g's, slow and easygoing, loud and folksy, loves his cast-iron skillet.",
+    fallback: "en-US-Chirp3-HD-Fenrir",
   },
 };
 

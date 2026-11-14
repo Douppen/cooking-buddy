@@ -412,6 +412,8 @@ test("each recipe's cuisine picks its cook; home and other cuisines keep the Bri
     "Alright, here's your butter chicken recipe. Now let me hand you over to my expert colleague, Pankaj.",
   );
   assert.equal(handoverLine("moussaka", "other"), "Alright, here's your moussaka recipe. Let's get cooking!");
+  assert.match(handoverLine("pierogi", "eastern_european"), /colleague, Babushka Olga\.$/);
+  assert.match(handoverLine("BBQ ribs", "american"), /colleague, Bubba\.$/);
 });
 
 test("the home box names a dish's cuisine; an unknown one is other", () => {

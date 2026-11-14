@@ -49,7 +49,18 @@ export const StepSchema = z.object({
 });
 
 // Cuisines with their own cook's voice (ai/personas.js); anything else is "other".
-export const CUISINES = ["indian", "chinese", "italian", "mexican", "french", "japanese", "thai", "other"];
+export const CUISINES = [
+  "indian",
+  "chinese",
+  "italian",
+  "mexican",
+  "french",
+  "japanese",
+  "thai",
+  "eastern_european",
+  "american",
+  "other",
+];
 
 export const RecipeSchema = z.object({
   recipe_id: z.string(),

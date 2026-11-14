@@ -42,9 +42,10 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   chicken recipe. Now let me hand you over to my expert colleague, Pankaj." (made while the
   recipe is found, so it plays the moment the recipe opens; said once, not on reload or
   Back). The cooks: Pankaj (Indian), Uncle Wei (Chinese), Giuseppe (Italian, a chef
-  from Naples with a heavy Italian accent), Abuela Rosa (Mexican), Chef Jacques (French), Kenji (Japanese),
-  Auntie Mali (Thai). Any other cuisine: the chef says "Let's get cooking!" and stays.
-  Names, voices and accents: `server/ai/personas.js`. Off: answers on home and while cooking
+  from Naples with a heavy Italian accent), Abuela Rosa (Mexican), Chef Jacques (French),
+  Kenji (Japanese), Auntie Mali (Thai), Babushka Olga (all Eastern European food), Bubba
+  (American food, an Appalachian hillbilly drawl). Any other cuisine (Greek, say): the chef
+  says "Let's get cooking!" and stays. Names, voices and accents: `server/ai/personas.js`. Off: answers on home and while cooking
   are text only (`speak()` in `app/src/speech.ts` does nothing).
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
@@ -210,9 +211,14 @@ Build everything so that port is cheap:
   **Other cooks for other cuisines** (`server/ai/personas.js`): the request may carry
   `cuisine` (the recipe's) and `context` (its title); `personaFor()` picks the cuisine's
   cook, or for older recipes without a cuisine Giuseppe when the title is clearly Italian, else
-  the chef (home sends neither). Each cook is a prebuilt voice plus a style asking for a
-  strong accent and a warm character, and a plain Chirp 3 HD fallback (`en-IN` for Pankaj,
-  `en-US` for the others). Header `x-persona` says who (`chef`, `indian`, …). `/api/home`
+  the chef (home sends neither). A style describing an accent wasn't enough for every cook
+  (an AI rater heard Kenji, Uncle Wei and Auntie Mali as American or British), so a cook's
+  character voice is one of: a Gemini voice + style (+ `languageCode`, e.g. Babushka
+  Olga's `ru-RU`); a native-language Chirp 3 HD voice reading the English (Chef Jacques:
+  French, Auntie Mali: Thai); or a respelling first, then a native voice (Kenji: katakana
+  English read by a Japanese voice; Uncle Wei: a Chinese-accent respelling read by a
+  Mandarin voice; ~0.8 s extra, one Gemini call in the EU). The text on screen stays plain
+  English. Each also has a plain Chirp 3 HD fallback reading the original text. Header `x-persona` says who (`chef`, `indian`, …). `/api/home`
   gives the handover line (`handoverLine()`), which the app preloads in the chef's voice.
   If Gemini fails or takes over 6 s, Cloud Text-to-Speech reads it with the persona's plain
   voice (the chef's: `en-GB-Chirp3-HD-Charon`, `TTS_FALLBACK_VOICE`; `eu-texttospeech.googleapis.com`,
