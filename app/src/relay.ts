@@ -43,14 +43,18 @@ export function connectRelay(
   const watchdog = setInterval(() => {
     if (document.visibilityState !== 'visible') return;
     if (!ws || Date.now() - last > QUIET_MS) {
-      ws?.close();
+      retire(ws);
       last = Date.now();
       open();
     }
   }, WATCHDOG_MS);
 
   const onVisibility = () => {
-    if (document.visibilityState === 'hidden') ws?.close();
+    if (document.visibilityState === 'hidden' && ws) {
+      retire(ws);
+      ws = null;
+      onStatus('closed');
+    }
   };
   document.addEventListener('visibilitychange', onVisibility);
   open();
@@ -62,9 +66,21 @@ export function connectRelay(
     stop() {
       clearInterval(watchdog);
       document.removeEventListener('visibilitychange', onVisibility);
-      const socket = ws;
+      retire(ws);
       ws = null;
-      socket?.close();
     },
   };
+}
+
+// Closing a socket mid-handshake makes the browser abort the TCP connection, which the Vite
+// dev proxy logs as ECONNRESET/EPIPE (React StrictMode does this on every dev mount). So
+// let the handshake finish, then close properly. A retired socket reports nothing more, so
+// it can't overwrite the status of its replacement.
+function retire(socket: WebSocket | null) {
+  if (!socket) return;
+  socket.onopen = null;
+  socket.onmessage = null;
+  socket.onclose = null;
+  if (socket.readyState === WebSocket.CONNECTING) socket.onopen = () => socket.close();
+  else socket.close();
 }
