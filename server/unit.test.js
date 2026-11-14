@@ -125,6 +125,8 @@ test("amounts are rounded the way recipes write them", () => {
   assert.equal(cleanAmountsInText("Add 56 g butter and 113ml milk, then 2 eggs."), "Add 55 g butter and 110ml milk, then 2 eggs.");
   assert.equal(cleanAmountsInText("Stir in 0.5 tsp salt and 1.5 tbsp oil."), "Stir in ½ tsp salt and 1½ tbsp oil.");
   assert.equal(cleanAmountsInText("Add 1 tsp vanilla."), "Add 1 tsp vanilla.");
+  // Under 50 ml reads better in spoons: 5 ml = 1 tsp, 15 ml = 1 tbsp.
+  assert.equal(cleanAmountsInText("Heat 5 ml olive oil, then 30 ml soy sauce and 250 ml stock."), "Heat 1 tsp olive oil, then 2 tbsp soy sauce and 250 ml stock.");
 });
 
 test("spoons and pinches: same in both systems, scaled between tsp and tbsp", () => {
@@ -146,6 +148,24 @@ test("spoons and pinches: same in both systems, scaled between tsp and tbsp", ()
   assert.deepEqual(cleanSpoon(0.5, "tbsp"), { amount: 1.5, unit: "tsp" });
   assert.deepEqual(cleanSpoon(14, "pinch"), { amount: 1, unit: "tsp" });
   assert.deepEqual(cleanSpoon(1, "pinch"), { amount: 1, unit: "pinch" });
+});
+
+test("small liquid amounts are stored in spoons", () => {
+  const ing = (base_amount) => ({ name: "Olive oil", base_amount, base_unit: "ml", substitutes: [], optional: false });
+  const made = toRecipe(
+    {
+      title: "Dressing",
+      base_servings: 2,
+      ingredients: [ing(5), ing(10), ing(15), ing(45), ing(50)],
+      steps: [{ title: "Mix", instruction: "Whisk 15 ml olive oil.", visual_cues: [], timer_sec: null }],
+    },
+    { recipe_id: "gen-dressing-x", origin: "generated", edits: [] },
+  );
+  assert.deepEqual(
+    made.ingredients.map((i) => `${i.base_amount} ${i.base_unit}`),
+    ["1 tsp", "2 tsp", "1 tbsp", "3 tbsp", "50 ml"],
+  );
+  assert.equal(made.steps[0].instruction, "Whisk 1 tbsp olive oil.");
 });
 
 test("AI recipes come out in Celsius", () => {

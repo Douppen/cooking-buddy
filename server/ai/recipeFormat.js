@@ -55,7 +55,7 @@ export const RECIPE_DRAFT_JSON_SCHEMA = {
 export const RECIPE_WRITING_RULES = [
   "Recipe format rules:",
   "- Amounts for base_servings: g for solids, ml for liquids, unit for countable things.",
-  "- Small amounts of salt, pepper, spices, dried herbs, baking powder or soda, extracts and similar go in spoons: tsp or tbsp, as the source has them (keep its spoons; never convert them to grams). Up to about 4 tbsp; more goes in g or ml.",
+  "- Small amounts go in spoons, tsp or tbsp, as the source has them (keep its spoons; never convert them to grams or ml): salt, pepper, spices, dried herbs, baking powder or soda, extracts, and small amounts of oil, vinegar, soy sauce, lemon juice and similar. Up to about 3 tbsp; more goes in g or ml.",
   "- 'pinch' only for 1 or 2 pinches (e.g. a pinch of salt); otherwise use tsp.",
   "- Ingredient names are plain and include prep, e.g. 'Garlic cloves, thinly sliced'.",
   "- Give 0-2 common substitutes per ingredient. Set optional to true only for things the dish works without (garnishes, extras).",

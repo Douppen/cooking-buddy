@@ -31,7 +31,7 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
 - **Metric or imperial** (switch at the bottom of `/`, kept on the device): every recipe
   stays stored in metric; the app shows amounts in oz/lb/tsp/tbsp/cups and converts °C,
   g, ml and cm in step text (`app/src/units.ts`). `/api/ask` gets `unit_system` so answers
-  match. Small amounts (salt, spices, leaveners, extracts) are stored in `tsp`/`tbsp`, or
+  match. Small amounts (salt, spices, leaveners, extracts, and any liquid under 50 ml, e.g. 15 ml oil → 1 tbsp) are stored in `tsp`/`tbsp`, or
   `pinch` for 1–2 pinches only, and look the same in both systems: tsp in quarters, tbsp in
   halves, 3+ tsp shown as tbsp, more than 2 pinches as tsp. `spoons()` in `app/src/units.ts`
   and `server/scaling.js` share these rules: change both together.

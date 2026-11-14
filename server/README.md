@@ -118,7 +118,7 @@ went (`ok`, `ms`, `queries`, `source`, or `error`).
 ### `models/domain.js` (recipe schema)
 
 The **Zod** recipe schema, used for requests and AI output: base units `g`, `ml`, `unit`
-(a count), and `tsp`, `tbsp` or `pinch` (1–2 only) for small amounts of salt, spices,
+(a count), and `tsp`, `tbsp` or `pinch` (1–2 only) for small amounts (any liquid under 50 ml becomes spoons: 5 ml = 1 tsp, 15 ml = 1 tbsp) of salt, spices,
 leaveners and extracts; substitutes, optional ingredients, short step instructions, visual
 cues, timers, `origin` (`generated`; `library` only on recipes saved before the built-in
 recipes were removed) and `edits`. Also `RecipeDraftSchema` (a

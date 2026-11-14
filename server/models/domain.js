@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { cleanAmount, cleanAmountsInText, cleanSpoon, toCelsiusInText } from "../scaling.js";
+import { SPOONS_BELOW_ML, cleanAmount, cleanAmountsInText, cleanSpoon, mlInTsp, toCelsiusInText } from "../scaling.js";
 
 export const IngredientSchema = z.object({
   id: z.string().describe("Clean snake_case identifier (e.g. 'heavy_cream')"),
@@ -103,10 +103,14 @@ export function toRecipe(draft, { recipe_id, origin, edits, previous, source = n
   return RecipeSchema.parse({ ...parsed, recipe_id, ingredients, steps, origin, edits, source });
 }
 
-// g/ml rounded as recipes write them; spoons to ¼ tsp or ½ tbsp, more than 2 pinches as tsp;
-// counts unchanged.
+// g/ml rounded as recipes write them; under 50 ml in spoons ("15 ml" → "1 tbsp"); spoons to
+// ¼ tsp or ½ tbsp, more than 2 pinches as tsp; counts unchanged.
 function cleanIngredientAmount(amount, unit) {
   if (unit === "unit") return { base_amount: amount, base_unit: unit };
+  if (unit === "ml" && amount < SPOONS_BELOW_ML) {
+    amount = mlInTsp(amount);
+    unit = "tsp";
+  }
   if (unit === "g" || unit === "ml") return { base_amount: cleanAmount(amount), base_unit: unit };
   const spoon = cleanSpoon(amount, unit);
   return { base_amount: spoon.amount, base_unit: spoon.unit };

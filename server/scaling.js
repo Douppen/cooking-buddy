@@ -75,6 +75,16 @@ function decimal(n, digits) {
 
 const SPOON_UNITS = new Set(["tsp", "tbsp", "pinch"]);
 
+// Small liquid amounts read better in spoons ("1 tbsp olive oil", not "15 ml"); volume
+// converts exactly, so anything under 50 ml is stored and written as tsp or tbsp.
+export const SPOONS_BELOW_ML = 50;
+const ML_PER_SPOON_TSP = 5; // a metric teaspoon (a tablespoon is 15 ml)
+
+/** A small ml amount as a teaspoon count, for cleanSpoon() / spoons(): 15 ml → 3 tsp (= 1 tbsp). */
+export function mlInTsp(ml) {
+  return ml / ML_PER_SPOON_TSP;
+}
+
 /** As a number of teaspoons, before rounding: 3 tsp to the tbsp, 16 pinches to the tsp. */
 function inTsp(amount, unit) {
   return unit === "tbsp" ? amount * 3 : unit === "pinch" ? amount / 16 : amount;
@@ -133,7 +143,14 @@ const SPOON_IN_TEXT = /(?<![\d.,])(\d+(?:\.\d+)?)\s*(tsp|tbsp)\b/g;
  */
 export function cleanAmountsInText(text) {
   return text
-    .replace(AMOUNT_IN_TEXT, (_match, value, space, unit) => `${cleanAmount(Number(value))}${space}${unit}`)
+    .replace(AMOUNT_IN_TEXT, (_match, value, space, unit) => {
+      const amount = Number(value);
+      if (unit === "ml" && amount < SPOONS_BELOW_ML) {
+        const shown = spoons(mlInTsp(amount), "tsp");
+        return `${shown.amount} ${shown.unit}`;
+      }
+      return `${cleanAmount(amount)}${space}${unit}`;
+    })
     .replace(SPOON_IN_TEXT, (_match, value, unit) => {
       const shown = spoons(Number(value), unit);
       return `${shown.amount} ${shown.unit}`;
