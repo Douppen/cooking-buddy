@@ -1,10 +1,15 @@
 name: Deploy
 
-# Push to main → checks → production (cook.simonnars.com). Also runnable by hand.
+# Push to main → production (cook.simonnars.com). Also runnable by hand.
+# Hackathon mode: no separate check job; a broken app build fails inside `kamal deploy`
+# (the Docker build) before anything reaches the box, and kamal-proxy only switches over
+# once the new container's /up is healthy.
 # Repo secrets: KAMAL_SSH_PRIVATE_KEY, TLS_CERTIFICATE_PEM, TLS_PRIVATE_KEY_PEM.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
   workflow_dispatch:
 
 concurrency:
@@ -12,39 +17,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: |
-            app/package-lock.json
-            server/package-lock.json
-
-      - name: Build glasses app
-        working-directory: app
-        env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-        run: |
-          npm ci --no-audit --no-fund
-          npm run build
-
-      - name: Server smoke test
-        working-directory: server
-        run: |
-          npm ci --no-audit --no-fund
-          node server.js &
-          for i in $(seq 1 20); do curl -sf http://localhost:8787/up && break; sleep 0.5; done
-          npm run smoke
-
   deploy:
-    needs: check
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -53,32 +28,14 @@ jobs:
       TLS_CERTIFICATE_PEM: ${{ secrets.TLS_CERTIFICATE_PEM }}
       TLS_PRIVATE_KEY_PEM: ${{ secrets.TLS_PRIVATE_KEY_PEM }}
     steps:
-      - name: Check deploy secrets are set
-        env:
-          SSH_KEY: ${{ secrets.KAMAL_SSH_PRIVATE_KEY }}
-        run: |
-          missing=""
-          [ -n "$SSH_KEY" ] || missing="$missing KAMAL_SSH_PRIVATE_KEY"
-          [ -n "$TLS_CERTIFICATE_PEM" ] || missing="$missing TLS_CERTIFICATE_PEM"
-          [ -n "$TLS_PRIVATE_KEY_PEM" ] || missing="$missing TLS_PRIVATE_KEY_PEM"
-          if [ -n "$missing" ]; then echo "::error::Missing repo secrets:$missing"; exit 1; fi
-
       - uses: actions/checkout@v6
 
+      # Kamal comes from the Gemfile so the installed gems are cached between runs.
+      # Kamal makes its own buildx builder and logs in to GHCR itself.
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3"
-          bundler-cache: false
-
-      - run: gem install kamal -v "~> 2.10"
-
-      - uses: docker/setup-buildx-action@v4
-
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          ruby-version: "4.0"
+          bundler-cache: true
 
       - uses: webfactory/ssh-agent@v0.10.0
         with:
@@ -90,10 +47,10 @@ jobs:
           cat .github/known_hosts >> ~/.ssh/known_hosts
 
       - name: Release any stale Kamal lock
-        run: kamal lock release || true
+        run: bundle exec kamal lock release || true
 
       - name: Deploy
-        run: kamal deploy
+        run: bundle exec kamal deploy
 
       - name: Verify live
         run: |

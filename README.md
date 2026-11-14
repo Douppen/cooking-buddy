@@ -23,9 +23,11 @@ Smoke test a running server: `cd server && npm run smoke` (or `-- ws://localhost
 
 ## Deploy
 
-Push to `main`. GitHub Actions builds the app, smoke-tests the server, then runs
-`kamal deploy`: the image goes to `ghcr.io/douppen/cooking-buddy`, the box pulls it, and
-kamal-proxy switches `cook.simonnars.com` over once `/up` is healthy.
+Push to `main` (Markdown-only changes don't deploy). GitHub Actions runs
+`bundle exec kamal deploy`: the image is built (a broken app build stops here), pushed to
+`ghcr.io/douppen/cooking-buddy`, the box pulls it, and kamal-proxy switches
+`cook.simonnars.com` over once `/up` is healthy. There's no separate test job, so run
+`npm run smoke` locally when you touch the server.
 
 Repo secrets: `KAMAL_SSH_PRIVATE_KEY` (the `deploy` user key), `TLS_CERTIFICATE_PEM` and
 `TLS_PRIVATE_KEY_PEM` (Cloudflare origin cert for simonnars.com).
