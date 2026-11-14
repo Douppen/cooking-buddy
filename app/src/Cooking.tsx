@@ -90,7 +90,8 @@ export function Cooking({
         if (controller.signal.aborted) return;
         if (changed) onRecipeChange(changed);
         dispatch({type: 'answered', answer, changed: Boolean(changed)});
-        speak(answer);
+        // A change shows what changed under "RECIPE UPDATED"; out loud, just that.
+        speak(changed ? 'Recipe updated.' : answer);
       })
       .catch(err => {
         if (controller.signal.aborted) return;

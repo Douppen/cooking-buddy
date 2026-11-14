@@ -1,5 +1,6 @@
 // Answer a cook's question about the recipe they're following, optionally with a photo of
-// what they see, and change the recipe when they ask for it ("I don't have buttermilk").
+// what they see, and change the recipe when they ask for it ("I don't have buttermilk",
+// "swap the butter for oil"): then there's no answer from Gemini, only what changed.
 // Used by POST /api/ask. Answers are shown on the HUD and read aloud.
 
 import { convertUnitSystem, scaleIngredients } from "../scaling.js";
@@ -18,16 +19,16 @@ const SYSTEM_INSTRUCTION = [
   "If the recipe doesn't cover the question, use common cooking knowledge.",
   "Take food safety seriously and say clearly when something is unsafe.",
   "",
-  "You can also change the recipe. Change it only when the cook says they don't have an ingredient,",
-  "can't or don't want to use something, or asks to swap, add, remove or adjust something.",
+  "You can also change the recipe. Change it when the cook tells you to (swap, replace, use, add, remove, skip, leave out, make it vegetarian, less spicy, more garlic) or says they don't have, can't or don't want to use something.",
   "When you change it:",
-  "- Make the smallest change that keeps the dish working. Prefer a listed substitute.",
-  "- Update every step that mentions what changed, including the amounts in its text. Keep everything else the same: same order, same wording.",
+  "- Make the smallest change that does what they asked and keeps the dish working. Prefer a listed substitute.",
+  "- Give a swapped-in ingredient its own right amount and unit for what it replaces, not the old number copied (e.g. 100 g butter -> 80 ml olive oil, 1 tbsp fresh thyme -> 1 tsp dried thyme, 2 eggs -> 2 tbsp ground flaxseed and 6 tbsp water). Update its substitutes too.",
+  "- Rewrite every step that mentions what changed: the ingredient's name, its amount in the text, and the method or time if the new ingredient needs it (tofu browns faster than chicken). Drop a step that only served a removed ingredient. Keep everything else the same: same order, same wording.",
+  "- A change that touches several ingredients ('make it vegetarian', 'dairy free') changes all of them.",
   "- Keep base_servings and write amounts for base_servings, like the recipe JSON you are given.",
-  "- Return the whole updated recipe in `recipe` and a few words in `change_summary`, e.g. 'Swapped buttermilk for milk and lemon'.",
-  "- In `answer`, tell the cook what changed and what to do now.",
+  "- Return the whole updated recipe in `recipe` and a few words in `change_summary`, e.g. 'Swapped butter for olive oil'. Leave `answer` empty: the app says 'Recipe updated' itself.",
   "If they ask whether they need an ingredient: answer, and if the dish works without it, return the recipe with it marked optional.",
-  "For ordinary questions, leave out `recipe` and set `change_summary` to an empty string.",
+  "For ordinary questions, write `answer`, leave out `recipe` and set `change_summary` to an empty string.",
   "",
   RECIPE_WRITING_RULES,
 ].join("\n");
@@ -42,12 +43,12 @@ const IMPERIAL_NOTE =
 const RESPONSE_JSON_SCHEMA = {
   type: "object",
   properties: {
-    answer: { type: "string", description: "One or two short sentences for the HUD, read aloud" },
     change_summary: { type: "string", description: "A few words on how the recipe changed, or empty" },
+    answer: { type: "string", description: "For a question: one or two short sentences, read aloud. Empty when the recipe changed" },
     recipe: { ...RECIPE_DRAFT_JSON_SCHEMA, description: "The whole updated recipe, only if it changed" },
   },
-  required: ["answer", "change_summary"],
-  propertyOrdering: ["answer", "change_summary", "recipe"],
+  required: ["change_summary", "answer"],
+  propertyOrdering: ["change_summary", "answer", "recipe"],
 };
 
 /**
@@ -100,10 +101,23 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
   } catch {
     throw new Error(`unreadable answer (finish reason: ${response.candidates?.[0]?.finishReason ?? "unknown"})`);
   }
+  return toAnswer(parsed);
+}
+
+/**
+ * Gemini's reply as { answer, changeSummary, draft }. A change gets a standard answer, the
+ * summary as a sentence ("Swapped butter for olive oil."), not Gemini's words: the app shows
+ * it under "RECIPE UPDATED" and says "Recipe updated".
+ */
+export function toAnswer(parsed) {
+  const changeSummary = String(parsed.change_summary ?? "").trim().replace(/[.!]+$/, "");
+  if (parsed.recipe && changeSummary) {
+    const answer = `${changeSummary.charAt(0).toUpperCase()}${changeSummary.slice(1)}.`;
+    return { answer, changeSummary, draft: parsed.recipe };
+  }
   const answer = String(parsed.answer ?? "").trim();
   if (!answer) throw new Error("empty answer");
-  const changeSummary = String(parsed.change_summary ?? "").trim();
-  return { answer, changeSummary, draft: parsed.recipe && changeSummary ? parsed.recipe : null };
+  return { answer, changeSummary: "", draft: null };
 }
 
 // The recipe as plain text: amounts scaled to `servings` in the units the cook sees,

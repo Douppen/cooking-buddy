@@ -40,9 +40,12 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   field sits under both views. Questions are about **the whole recipe**, not one step: the
   app sends no `step_index` to `/api/ask`.
 - **The answer shows above the ask field** on either view for 15 s and is read aloud.
-- **Saying "I don't have X" or "can I skip X" edits the recipe**: the AI makes the smallest
-  change, rewrites the affected ingredients and steps, and the answer is labelled "RECIPE
-  UPDATED" with what changed (~6–8 s). Both lists show the new recipe; the cook stays on the
+- **Saying "I don't have X", "can I skip X" or a command ("swap the butter for oil", "make it
+  vegetarian") edits the recipe**: the AI makes the smallest change, gives swapped-in
+  ingredients their own amounts, and rewrites the affected steps (names, amounts, times).
+  There's no AI answer then: the server answers with the change summary ("Swapped butter
+  for olive oil."), shown under "RECIPE UPDATED", and the app only says "Recipe updated"
+  (~6–8 s). Both lists show the new recipe; the cook stays on the
   same view. "Do I need X?" answers, and marks X optional when the dish works without it.
 - **Metric or imperial** (a small "Imperial units" switch on `/` between the dish field and the servings, label and toggle only, no row box; kept on the device): every recipe
   stays stored in metric; the app shows amounts in oz/lb/tsp/tbsp/cups and converts °C,

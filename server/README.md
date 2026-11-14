@@ -98,7 +98,7 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 
 | Status | When |
 | --- | --- |
-| 200 | `{ answer, model, ms }`: 1–2 plain-text sentences, at most about 30 words. When the cook's words changed the recipe ("I don't have buttermilk"), also `recipe` (the whole updated recipe, same `recipe_id`, the change appended to `edits`) and `change_summary` |
+| 200 | `{ answer, model, ms }`: 1–2 plain-text sentences, at most about 30 words. When the cook's words changed the recipe ("I don't have buttermilk"), also `recipe` (the whole updated recipe, same `recipe_id`, the change appended to `edits`) and `change_summary`; `answer` is then just the summary as a sentence ("Swapped butter for olive oil."), not Gemini's words |
 | 400 | Not JSON, or fails validation (`issues: [{ path, message }]`) |
 | 405 / 415 / 413 | Not POST / not `application/json` / body over 3 MB |
 | 429 | More than 30 requests in a minute from one client IP (`cf-connecting-ip`) |

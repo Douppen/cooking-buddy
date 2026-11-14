@@ -7,7 +7,7 @@ import { RecipeSchema, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
 import { NotFoodError, namedDish, sourceOf, toFound, toSorted } from "./ai/generate.js";
-import { recipeContext } from "./ai/answer.js";
+import { recipeContext, toAnswer } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
 
 // A fixed test recipe; the app itself has no built-in recipes (the AI writes them).
@@ -322,4 +322,21 @@ test("a dish counts only when the cook or an earlier suggestion named it", () =>
   assert.ok(namedDish("Shakshuka", said("yes, let's do it", "How about shakshuka? (Suggested: Shakshuka)")));
   assert.ok(!namedDish("Pan Seared Chicken Breast", said("chicken recipe")));
   assert.ok(!namedDish("Easy Recipe", said("an easy recipe")));
+});
+
+test("a recipe change gets a standard answer, not Gemini's words", () => {
+  const draft = recipeToDraft(recipe);
+  assert.deepEqual(toAnswer({ change_summary: "swapped butter for olive oil.", answer: "", recipe: draft }), {
+    answer: "Swapped butter for olive oil.",
+    changeSummary: "swapped butter for olive oil",
+    draft,
+  });
+  assert.equal(toAnswer({ change_summary: "Swapped butter for oil", answer: "Use oil now!", recipe: draft }).answer, "Swapped butter for oil.");
+  assert.deepEqual(toAnswer({ change_summary: "", answer: " Fry for 3 minutes. " }), {
+    answer: "Fry for 3 minutes.",
+    changeSummary: "",
+    draft: null,
+  });
+  assert.equal(toAnswer({ change_summary: "", answer: "Yes.", recipe: draft }).draft, null); // no summary: no change
+  assert.throws(() => toAnswer({ change_summary: "", answer: "" }));
 });
