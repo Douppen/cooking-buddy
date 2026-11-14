@@ -22,6 +22,11 @@ cd app && npm install && npm run dev      # :5173, proxies /api to :8787
 
 Smoke test a running server: `cd server && npm run smoke` (or `-- https://cook.simonnars.com`).
 
+`POST /api/ask` answers questions about the current recipe step with Gemini 4 Hydrogen on
+Google Cloud's EU region (details in [CLAUDE.md](CLAUDE.md)). To use it locally, start the
+server with `GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json`, then try it
+with `cd server && npm run ask` (or `--image photo.jpg`).
+
 ## Deploy
 
 Push to `main` (Markdown-only changes don't deploy). GitHub Actions runs
@@ -31,7 +36,8 @@ Push to `main` (Markdown-only changes don't deploy). GitHub Actions runs
 `npm run smoke` locally when you touch the server.
 
 Repo secrets: `KAMAL_SSH_PRIVATE_KEY` (the `deploy` user key), `TLS_CERTIFICATE_PEM` and
-`TLS_PRIVATE_KEY_PEM` (Cloudflare origin cert for simonnars.com).
+`TLS_PRIVATE_KEY_PEM` (Cloudflare origin cert for simonnars.com), and
+`GOOGLE_CREDENTIALS_B64` (base64 of the Google service account's JSON key, for `/api/ask`).
 
 Deploys swap the container, so an in-flight request can fail. Don't deploy during the demo.
 

@@ -1,13 +1,15 @@
 // Cooking Buddy server: serves the built glasses web app. The app's "brains" (recipes,
 // AI answers at /api/ask) belong here too, so a future native app can reuse them.
 //
-//   GET  /up     health check (Kamal + Docker)
-//   GET  /*      static files from PUBLIC_DIR, SPA fallback to index.html
+//   GET  /up        health check (Kamal + Docker)
+//   POST /api/ask   answer a question about the current recipe step (see ask.js)
+//   GET  /*         static files from PUBLIC_DIR, SPA fallback to index.html
 
 import { createReadStream, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { handleAsk, sendJson, warmUpAi } from "./ask.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const PUBLIC_DIR = resolve(
@@ -33,6 +35,18 @@ const TYPES = {
 const http = createServer((req, res) => {
   if (req.url === "/up") {
     res.writeHead(200, { "content-type": "text/plain" }).end("OK");
+    return;
+  }
+  const path = (req.url ?? "/").split("?")[0];
+  if (path === "/api/ask") {
+    handleAsk(req, res).catch((err) => {
+      console.error("ask crashed:", err);
+      if (!res.headersSent) sendJson(res, 500, { error: "Server error" });
+    });
+    return;
+  }
+  if (path === "/api" || path.startsWith("/api/")) {
+    sendJson(res, 404, { error: "No such API route" });
     return;
   }
   serveStatic(req, res);
@@ -106,4 +120,5 @@ process.on("SIGINT", shutdown);
 
 http.listen(PORT, "0.0.0.0", () => {
   console.log(`cooking-buddy listening on :${PORT}, serving ${PUBLIC_DIR}`);
+  warmUpAi();
 });

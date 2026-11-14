@@ -4,7 +4,8 @@ name: Deploy
 # Hackathon mode: no separate check job; a broken app build fails inside `kamal deploy`
 # (the Docker build) before anything reaches the box, and kamal-proxy only switches over
 # once the new container's /up is healthy.
-# Repo secrets: KAMAL_SSH_PRIVATE_KEY, TLS_CERTIFICATE_PEM, TLS_PRIVATE_KEY_PEM.
+# Repo secrets: KAMAL_SSH_PRIVATE_KEY, TLS_CERTIFICATE_PEM, TLS_PRIVATE_KEY_PEM,
+# GOOGLE_CREDENTIALS_B64.
 on:
   push:
     branches: [main]
@@ -27,6 +28,7 @@ jobs:
       KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
       TLS_CERTIFICATE_PEM: ${{ secrets.TLS_CERTIFICATE_PEM }}
       TLS_PRIVATE_KEY_PEM: ${{ secrets.TLS_PRIVATE_KEY_PEM }}
+      GOOGLE_CREDENTIALS_B64: ${{ secrets.GOOGLE_CREDENTIALS_B64 }}
     steps:
       - uses: actions/checkout@v6
 

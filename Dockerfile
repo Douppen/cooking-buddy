@@ -22,7 +22,7 @@ RUN groupadd --system --gid 1001 app \
 
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
-COPY --chown=app:app server/server.js ./
+COPY --chown=app:app server/ ./
 COPY --from=app-build --chown=app:app /app/dist ./public
 
 USER app
