@@ -6,6 +6,7 @@ import { cleanAmount, cleanAmountsInText, cleanCount, cleanSpoon, convertUnitSys
 import { RecipeSchema, decodeEntities, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
+import { HomeRequestSchema } from "./home.js";
 import { NotFoodError, namedDish, sourceOf, toFound, toSorted } from "./ai/generate.js";
 import { recipeContext, toAnswer } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
@@ -277,15 +278,16 @@ test("whole counts (eggs, garlic cloves) never split; others round to halves", (
   );
 });
 
-test("generate request validation", () => {
-  assert.ok(GenerateRequestSchema.safeParse({ request: "carbonara for 4" }).success);
-  assert.equal(GenerateRequestSchema.safeParse({ request: "   " }).success, false);
-  // Servings aren't part of a recipe request (the app scales); an old client's value is ignored.
-  assert.deepEqual(GenerateRequestSchema.parse({ request: "lasagne", servings: 6 }), { request: "lasagne", history: [] });
+test("home and generate request validation", () => {
+  assert.ok(HomeRequestSchema.safeParse({ request: "carbonara for 4" }).success);
+  assert.equal(HomeRequestSchema.safeParse({ request: "   " }).success, false);
   // The conversation so far on home, for follow-ups.
   const history = [{ role: "cook", text: "ideas for dinner?" }, { role: "buddy", text: "Try a curry or a stir-fry." }];
-  assert.ok(GenerateRequestSchema.safeParse({ request: "the second one", history }).success);
-  assert.equal(GenerateRequestSchema.safeParse({ request: "x", history: [{ role: "chef", text: "hi" }] }).success, false);
+  assert.ok(HomeRequestSchema.safeParse({ request: "the second one", history }).success);
+  assert.equal(HomeRequestSchema.safeParse({ request: "x", history: [{ role: "chef", text: "hi" }] }).success, false);
+  // A recipe is fetched for a dish only; servings are the app's (it scales).
+  assert.deepEqual(GenerateRequestSchema.parse({ dish: " lasagne ", servings: 6 }), { dish: "lasagne" });
+  assert.equal(GenerateRequestSchema.safeParse({ dish: "" }).success, false);
 });
 
 test("the home box sorts replies: a named dish, an answer with suggestions, or not food", () => {
@@ -297,7 +299,15 @@ test("the home box sorts replies: a named dish, an answer with suggestions, or n
   assert.deepEqual(answer, { kind: "answer", answer: "Try a curry.", suggestions: ["Chicken curry", "Dal", "Stir-fry"] });
   assert.throws(() => toSorted({ dish: "", intent: "not_food" }, input), NotFoodError);
   assert.throws(() => toSorted({ dish: "", intent: "chat", answer: "" }, input)); // no answer
-  assert.deepEqual(toSorted({ dish: "Lasagna", intent: "recipe" }, { request: "lasagna" }), { kind: "dish", dish: "Lasagna" });
+  assert.deepEqual(toSorted({ dish: "Lasagna", intent: "recipe", servings: 0 }, { request: "lasagna" }), {
+    kind: "dish",
+    dish: "Lasagna",
+    servings: null,
+  });
+  // What the cook says about servings comes along with the dish, within 1-8.
+  assert.equal(toSorted({ dish: "Lasagna", intent: "recipe", servings: 4 }, { request: "lasagna for 4" }).servings, 4);
+  assert.equal(toSorted({ dish: "Lasagna", intent: "recipe", servings: 30 }, { request: "lasagna for 30" }).servings, 8);
+  assert.equal(toSorted({ dish: "Lasagna", intent: "recipe", servings: 2.5 }, { request: "lasagna" }).servings, 3);
   // A dish the cook never named: the answer instead.
   const vague = { request: "give me a simple middle eastern recipe" };
   const picked = { dish: "Shakshuka", intent: "recipe", answer: "Try shakshuka or falafel.", suggestions: ["Shakshuka", "Falafel"] };

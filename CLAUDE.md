@@ -10,8 +10,9 @@ Live at https://cook.simonnars.com.
 
 Keep the glasses UI simple: plain text lists you scroll, not a phone screen on your face.
 
-- **Home** (`/`): one field at the bottom for a dish or food talk (`POST
-  /api/recipes/generate`). A fast EU call sorts it first. Only a named dish ("lasagna",
+- **Home** (`/`): one field at the bottom for a dish or food talk. A fast EU call
+  sorts it first (`POST /api/home`), then the app fetches a dish's recipe (`POST
+  /api/recipes/generate`), showing "Getting lasagna, 4 servings…" meanwhile. Only a named dish ("lasagna",
   "the second one" after ideas, or "yes, do it" when one dish was offered) fetches a recipe; a kind of dish ("a simple middle
   eastern recipe") is food talk. A dish: the AI finds a real recipe on
   the web, converts it, and cooking starts. Food talk ("ideas for a light dinner", "what can
@@ -25,8 +26,9 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   Older recipes stay saved on the device (for a "previous recipes" list later) but aren't shown.
 - **Servings:** a box at the bottom of home, styled like a list row ("‹ 2 servings ›",
   "Swipe left or right to change"), 2 by default each time home opens, 1 to 8. Only while
-  it has focus, **swipe right** adds one and **swipe left** takes one away. The new recipe is
-  scaled to it (see "Servings are the app's job" below). Focus order on home:
+  it has focus, **swipe right** adds one and **swipe left** takes one away. Saying a number
+  with the dish ("lasagna for 4", "yes, for six people") sets the box to it before the recipe
+  is fetched, so the cook sees it change. The new recipe is scaled to it (see "Servings are the app's job" below). Focus order on home:
   last recipe, dish field, units switch, voice switch, servings.
 - **Voice on or off:** a "Voice" switch next to "Imperial units" (same row, kept on the
   device, on by default). Off: answers on home and while cooking are text only (`speak()` in
@@ -125,23 +127,25 @@ Build everything so that port is cheap:
   `step_index` the answer covers the whole recipe; the web app never sends one. **Response:**
   `{ answer, model, ms }`, plus `{ recipe, change_summary }` when the cook's words changed
   the recipe. Answers are 1–2 sentences, plain text, meant to be shown and spoken.
-- **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara" }` first sorts
-  the request (EU, no search, `sortRequest()` in `server/ai/generate.js`; food talk gets its
-  answer from this call), then for a named dish returns `{ kind: "recipe", recipe,
-  found_online, model, ms }`. Gemini searches the web, picks one well-reviewed
+- **The home box, two endpoints:** `POST /api/home` with `{ request, history? }` sorts what
+  the cook said (EU, no search, `sortRequest()` in `server/ai/generate.js`): `{ kind:
+  "answer", answer, suggestions }` for food talk, or `{ kind: "dish", dish, servings }` for a
+  named dish, with the servings the cook said (1–8, or null). The app then sends `{ dish }`
+  to `POST /api/recipes/generate`, which returns `{ kind: "recipe", recipe, found_online,
+  model, ms }`. Two calls so home can show the dish and servings while the recipe comes. Gemini searches the web, picks one well-reviewed
   recipe and rewrites it in our format ; `recipe.source` is the website it used,
   e.g. `{ name: "seriouseats.com" }`. There's no link: with our JSON output format Google
   returns its search queries but not the pages, so `found_online` means Google reported a
   search. If the search fails, Gemini writes the classic version itself (`found_online:
   false`, `source: null`).
   Requests that aren't about food ("write me a poem", gibberish, inedible things) get `422
-  { error, not_a_recipe: true }` instead of a recipe: the sorting call decides, before any
-  search, and the app shows the server's message. `GET /api/status` shows how the last
+  { error, not_a_recipe: true }` from `/api/home`, before any search, and the app shows the server's message. `GET /api/status` shows how the last
   search went. The server stores nothing; the device
   keeps the recipe and sends it to `/api/ask` like any recipe. Edits keep the source.
-- **Servings are the app's job, and the setting always wins:** a number in the request
-  ("lasagna for 3") is ignored on purpose. A new recipe keeps its source's servings (`base_servings`).
-  The servings the cook picked on home are saved on the recipe as `servings` (kept through
+- **Servings are the app's job, and what the cook says wins:** "lasagna for 3" makes
+  `/api/home` return `servings: 3`, and the app sets its servings box to 3 (otherwise the
+  box's value is used). The recipe search never gets a number: a new recipe keeps its
+  source's servings (`base_servings`). The servings the cook picked on home are saved on the recipe as `servings` (kept through
   edits). The cooking screen scales the ingredient list and the amounts in step text
   (`scaleAmountsInText()`: numbers with a unit or a counted ingredient, not times or sizes)
   with the same tidy rounding as stored amounts (`cleanAmount()`, spoons under 50 ml), in
@@ -162,8 +166,8 @@ Build everything so that port is cheap:
   every 15 minutes, because a cold first call took about 8 s. A backup request
   (`withBackup` in `server/ai/gemini.js`) covers Gemini's occasional stalls: after 10 s for
   `/api/ask`, 15 s for a new recipe.
-- The endpoints are public and every call costs money: `/api/ask` is limited to 30 requests
-  and `/api/recipes/generate` to 20 per minute per client IP (Cloudflare's
+- The endpoints are public and every call costs money: `/api/ask` and `/api/home` are
+  limited to 30 requests and `/api/recipes/generate` to 20 per minute per client IP (Cloudflare's
   `cf-connecting-ip`).
 
 ## Layout
@@ -171,7 +175,7 @@ Build everything so that port is cheap:
 ```
 app/      Glasses web app: React + Vite + @wearables-ui-toolkit/mrbd. Built to static files.
 server/   Node server: serves app/dist, health at /up, API under /api (zod for validation).
-          ask.js = /api/ask, generate.js = /api/recipes/generate, http.js = shared request
+          ask.js = /api/ask, home.js = /api/home, generate.js = /api/recipes/generate, http.js = shared request
           handling, ai/ = everything that calls Gemini (gemini.js = shared client, warm-up,
           withBackup; one file per task), models/domain.js = recipe schema, scaling.js =
           servings and units, fixtures/ = a test recipe for npm test and npm run ask.

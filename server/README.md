@@ -29,7 +29,7 @@ npm run ask -- --image photo.jpg
 ```
 
 Without Google credentials the server still starts. Everything works except
-`POST /api/ask` and `POST /api/recipes/generate`, which answer 503.
+`POST /api/ask`, `POST /api/home` and `POST /api/recipes/generate`, which answer 503.
 
 ### Environment
 
@@ -54,14 +54,15 @@ server/
 ├── ai/                # Everything that calls Gemini
 │   ├── gemini.js      # Shared client: credentials, EU location, warm-up, /api/status info
 │   ├── answer.js      # /api/ask: answer, or edit the recipe when the cook asks
-│   ├── generate.js    # /api/recipes/generate: find a recipe on the web (fallback: write one)
+│   ├── generate.js    # /api/home: sort the box; /api/recipes/generate: find a recipe on the web (fallback: write one)
 │   └── recipeFormat.js # Recipe JSON schema and writing rules shared by both
 ├── models/
 │   └── domain.js      # Recipe, ingredient and step schemas (Zod), AI drafts, toRecipe()
 ├── fixtures/          # A fixed test recipe for npm test and npm run ask (not served)
 ├── scaling.js         # Pure functions: scale to servings, metric/imperial display amounts
 ├── ask.js             # POST /api/ask: request schema, then ai/answer.js and toRecipe()
-├── generate.js        # POST /api/recipes/generate: request schema, then ai/generate.js
+├── home.js            # POST /api/home: request schema, then sortRequest() in ai/generate.js
+├── generate.js        # POST /api/recipes/generate: request schema, then findOnline()/writeOffline()
 ├── http.js            # readJsonRequest(), sendJson, clientIp, per-IP rate limiter
 ├── server.js          # HTTP server: routes, static app files, /up health check
 ├── unit.test.js       # npm test: test recipe, scaling, prompts, AI drafts, request validation
@@ -79,7 +80,8 @@ server/
 | `GET /up` | Health check for Kamal and Docker, answers `OK` |
 | `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up } }`. Free: never calls the model |
 | `POST /api/ask` | `{ recipe, question, step_index?, servings?, image? }` → `{ answer, model, ms }`, plus `{ recipe, change_summary }` when it changed the recipe |
-| `POST /api/recipes/generate` | The home box. `{ request, history? }` (history: the conversation so far, up to 10 `{ role: "cook" \| "buddy", text }` turns). A dish gives `{ kind: "recipe", recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name }` of the website (no link); if the search fails, a classic recipe Gemini writes itself (`found_online: false`). Food talk gives `{ kind: "answer", answer, suggestions, model, ms }`: at most 30 words to show and read aloud, up to 3 dish names. Not about food: `422 { error, not_a_recipe: true }`. A recipe keeps its own servings (the app scales it). Nothing is stored on the server. 20 requests per minute per IP |
+| `POST /api/home` | The home box. `{ request, history? }` (history: the conversation so far, up to 10 `{ role: "cook" \| "buddy", text }` turns). Food talk gives `{ kind: "answer", answer, suggestions, model, ms }`: at most 30 words to show and read aloud, up to 3 dish names. A named dish ("lasagna for 4", "the second one", "yes" to an offered dish) gives `{ kind: "dish", dish, servings, model, ms }`: `servings` is the number the cook said (1–8) or null; the app sets its servings setting to it. Not about food: `422 { error, not_a_recipe: true }`. One fast EU call, no search. 30 requests per minute per IP |
+| `POST /api/recipes/generate` | `{ dish }` from `/api/home` → `{ kind: "recipe", recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name }` of the website (no link); if the search fails, a classic recipe Gemini writes itself (`found_online: false`). A recipe keeps its own servings (the app scales it). Nothing is stored on the server. 20 requests per minute per IP |
 | `GET /*` | The built glasses app; unknown paths without an extension get `index.html`, missing assets 404. `/test.html` is a browser page for trying `/api/ask` |
 
 All JSON responses are sent with `cache-control: no-store`. Errors are `{ error }`.
@@ -105,10 +107,11 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 | 502 | Gemini failed or timed out: each attempt gets 20 s, and a backup request starts after 10 s (an edit takes up to ~8.5 s) or as soon as the first fails |
 | 503 | No Google credentials configured |
 
-`POST /api/recipes/generate` answers the same way, with a 16 KB body limit and 20 requests
-a minute per IP. The web search gets one attempt of up to 20 s; if it fails, the fallback
-writer gets 18 s per attempt with a backup after 10 s, so the total stays under the app's
-45 s wait. `GET /api/status` includes `search: { location, last }`: how the last web search
+`POST /api/home` answers the same way, with a 16 KB body limit and 30 requests a minute per
+IP; each attempt gets 6 s and a backup starts after 3 s. `POST /api/recipes/generate` has a
+4 KB body limit and 20 requests a minute per IP. The web search gets one attempt of up to
+20 s; if it fails, the fallback writer gets 14 s per attempt with a backup after 8 s, so the
+total stays under the app's 45 s wait. `GET /api/status` includes `search: { location, last }`: how the last web search
 went (`ok`, `ms`, `queries`, `source`, or `error`).
 
 ---

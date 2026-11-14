@@ -157,7 +157,7 @@
       const res = await fetch("/api/recipes/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ request }),
+        body: JSON.stringify({ dish: request }),
       });
       const data = await res.json();
       const total = Math.round(performance.now() - started);

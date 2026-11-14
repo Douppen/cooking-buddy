@@ -5,7 +5,8 @@
 //   GET  /up                  health check (Kamal + Docker)
 //   POST /api/ask             answer a question about a recipe, or change the recipe when
 //                             the cook asks (see ask.js)
-//   POST /api/recipes/generate  find a recipe on the web for a dish the cook names (generate.js)
+//   POST /api/home              the home box: sort the cook's words into a dish or an answer (home.js)
+//   POST /api/recipes/generate  find a recipe on the web for that dish (generate.js)
 //   GET  /api/status          AI configuration and last Gemini warm-up (costs nothing)
 //   GET  /*                   static files from PUBLIC_DIR, SPA fallback to index.html
 //                             (/test.html is a browser page for trying /api/ask)
@@ -17,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { aiStatus, warmUpAi } from "./ai/gemini.js";
 import { handleAsk } from "./ask.js";
 import { handleGenerate, searchStatus } from "./generate.js";
+import { handleHome } from "./home.js";
 import { sendJson } from "./http.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -49,6 +51,13 @@ const http = createServer((req, res) => {
   if (path === "/api/ask") {
     handleAsk(req, res).catch((err) => {
       console.error("ask crashed:", err);
+      if (!res.headersSent) sendJson(res, 500, { error: "Server error" });
+    });
+    return;
+  }
+  if (path === "/api/home") {
+    handleHome(req, res).catch((err) => {
+      console.error("home crashed:", err);
       if (!res.headersSent) sendJson(res, 500, { error: "Server error" });
     });
     return;

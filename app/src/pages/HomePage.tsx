@@ -13,13 +13,14 @@ import {
   VisualState,
 } from '@wearables-ui-toolkit/mrbd';
 import {useNavigate} from 'react-router-dom';
-import {ServerMessageError, askHome, type Turn} from '../api';
+import {ServerMessageError, askHome, findRecipe, type Turn} from '../api';
 import {useRecipes} from '../RecipesContext';
 import {speak, stopSpeaking} from '../speech';
 
 type Status =
   | {kind: 'idle'}
   | {kind: 'thinking'}
+  | {kind: 'fetching'; dish: string; servings: number}
   | {kind: 'answered'; answer: string; suggestions: string[]}
   | {kind: 'failed'; message?: string};
 
@@ -38,15 +39,20 @@ const VOICE_TOGGLE_MATERIAL = toggleMaterial();
 
 // How many servings the new recipe is for: a box like a list row. While it has focus, swipe right
 // (ArrowRight) adds one and swipe left (ArrowLeft) takes one away; elsewhere swipes don't
-// touch it. 1 to 8. Saved on the recipe as `servings`; the recipe keeps its own base_servings
-// and the cooking screen scales amounts (scalingFor() in cookingState.ts).
+// touch it. 1 to 8. Saying it works too: "lasagna for 4" sets the box to 4 before the recipe
+// is fetched (the server hears the number). Saved on the recipe as `servings`; the recipe
+// keeps its own base_servings and the cooking screen scales amounts (scalingFor() in
+// cookingState.ts).
 const DEFAULT_SERVINGS = 2;
 const MIN_SERVINGS = 1;
 const MAX_SERVINGS = 8;
 
+function clampServings(servings: number): number {
+  return Math.min(MAX_SERVINGS, Math.max(MIN_SERVINGS, Math.round(servings)));
+}
+
 function stepServings(servings: number, action: 'next' | 'prev'): number {
-  const next = servings + (action === 'next' ? 1 : -1);
-  return Math.min(MAX_SERVINGS, Math.max(MIN_SERVINGS, next));
+  return clampServings(servings + (action === 'next' ? 1 : -1));
 }
 
 // The only screen besides cooking. The box takes a dish ("lasagna": the AI finds a recipe and
@@ -89,18 +95,24 @@ export function HomePage() {
     `${servings} ${servings === 1 ? 'serving' : 'servings'}` +
     (servings < MAX_SERVINGS ? ' ›' : '');
 
+  const busy = status.kind === 'thinking' || status.kind === 'fetching';
+
+  // Two steps: the server sorts what the cook said (a dish, or an answer), then for a dish
+  // the recipe is fetched while home shows the dish and the servings box with any number
+  // the cook said.
   const send = (text: string) => {
     const said = text.trim();
-    if (!said || status.kind === 'thinking') return;
+    if (!said || busy) return;
     setDish('');
     stopSpeaking();
     pending.current?.abort();
     const controller = new AbortController();
     pending.current = controller;
+    const {signal} = controller;
     setStatus({kind: 'thinking'});
-    askHome(said, history, controller.signal)
+    askHome(said, history, signal)
       .then(reply => {
-        if (controller.signal.aborted) return;
+        if (signal.aborted) return;
         if (reply.kind === 'answer') {
           // Suggestions go into the history too, so "the second one" can be resolved.
           const offered = reply.suggestions.length ? ` (Suggested: ${reply.suggestions.join('; ')})` : '';
@@ -113,29 +125,42 @@ export function HomePage() {
           speak(reply.answer);
           return;
         }
-        // The recipe keeps its source's servings; the cook's choice is saved next to them.
-        saveRecipe({...reply.recipe, servings});
-        setHistory([]);
-        setStatus({kind: 'idle'});
-        // Push, so Back from cooking returns here, with this recipe on top.
-        navigate(`/cook/${reply.recipe.recipe_id}`);
+        // What the cook said wins over the box ("for 4"); the box shows it.
+        const chosen = reply.servings ? clampServings(reply.servings) : servings;
+        setServings(chosen);
+        setStatus({kind: 'fetching', dish: reply.dish, servings: chosen});
+        return findRecipe(reply.dish, signal).then(recipe => {
+          if (signal.aborted) return;
+          // The recipe keeps its source's servings; the cook's choice is saved next to them.
+          saveRecipe({...recipe, servings: chosen});
+          setHistory([]);
+          setStatus({kind: 'idle'});
+          // Push, so Back from cooking returns here, with this recipe on top.
+          navigate(`/cook/${recipe.recipe_id}`);
+        });
       })
       .catch(err => {
-        if (controller.signal.aborted) return;
+        if (signal.aborted) return;
         console.error('The home box failed:', err);
         // The server's own words when it gave some ("Let's keep it to food…").
         setStatus({kind: 'failed', message: err instanceof ServerMessageError ? err.message : undefined});
       });
   };
 
-  const message =
-    status.kind === 'thinking'
-      ? 'Thinking…'
-      : status.kind === 'answered'
-        ? status.answer
-        : status.kind === 'failed'
-          ? (status.message ?? "Couldn't answer that. Try again.")
-          : 'What do you want to cook? Or ask for ideas.';
+  const message = (() => {
+    switch (status.kind) {
+      case 'thinking':
+        return 'Thinking…';
+      case 'fetching':
+        return `Getting ${status.dish}, ${status.servings} ${status.servings === 1 ? 'serving' : 'servings'}…`;
+      case 'answered':
+        return status.answer;
+      case 'failed':
+        return status.message ?? "Couldn't answer that. Try again.";
+      case 'idle':
+        return 'What do you want to cook? Or ask for ideas.';
+    }
+  })();
   const suggestions = status.kind === 'answered' ? status.suggestions : [];
 
   return (
@@ -165,8 +190,8 @@ export function HomePage() {
             onTextChange={setDish}
             onSend={send}
             showActionButton={false}
-            showLoader={status.kind === 'thinking'}
-            loadingLabel="Thinking"
+            showLoader={busy}
+            loadingLabel={status.kind === 'fetching' ? 'Getting the recipe' : 'Thinking'}
             inputProps={{'aria-label': 'Dish to cook, or a food question', maxLength: 200}}
           />
           {/* While an answer shows, the setup controls step aside so the answer and its

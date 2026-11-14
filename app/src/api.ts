@@ -47,6 +47,7 @@ export interface Answer {
 // The server may send a backup request (see server/ai/gemini.js), and an answer that edits
 // the recipe takes ~8.5 s, writing a new recipe ~8 s. These cover the server's worst case.
 const ASK_TIMEOUT_MS = 30_000;
+const HOME_TIMEOUT_MS = 15_000;
 const GENERATE_TIMEOUT_MS = 45_000;
 
 /** One turn of the conversation on home, oldest first, sent back so follow-ups work. */
@@ -55,25 +56,36 @@ export interface Turn {
   text: string;
 }
 
-/** What the home box gives back: a recipe to cook, or an answer with dishes to offer. */
+/**
+ * What the home box gives back: a dish to fetch (with the servings the cook said, if any),
+ * or an answer with dishes to offer.
+ */
 export type HomeReply =
-  | {kind: 'recipe'; recipe: Recipe}
+  | {kind: 'dish'; dish: string; servings: number | null}
   | {kind: 'answer'; answer: string; suggestions: string[]};
 
 /**
- * The home box: a dish ("lasagna") gives a recipe found on the web; food talk ("ideas for a
- * light dinner", "what can I make with rice and eggs?") gives a short answer and up to 3
- * dish suggestions. `history` is the conversation so far, for follow-ups ("the second one").
+ * The home box: a dish ("lasagna for 4", "the second one", "yes") gives the dish to fetch
+ * with findRecipe(), and the servings the cook said; food talk ("ideas for a light dinner")
+ * gives a short answer and up to 3 dish suggestions. `history` is the conversation so far.
  * Anything not about food throws a ServerMessageError with the server's words.
  */
 export async function askHome(request: string, history: Turn[], signal: AbortSignal): Promise<HomeReply> {
-  const body = await postJson('/api/recipes/generate', {request, history}, signal, GENERATE_TIMEOUT_MS);
+  const body = await postJson('/api/home', {request, history}, signal, HOME_TIMEOUT_MS);
   if (body.kind === 'answer' && typeof body.answer === 'string') {
     const suggestions = Array.isArray(body.suggestions) ? body.suggestions.filter((s): s is string => typeof s === 'string') : [];
     return {kind: 'answer', answer: body.answer, suggestions};
   }
+  if (body.kind !== 'dish' || typeof body.dish !== 'string') throw new Error('No dish in the reply');
+  const servings = typeof body.servings === 'number' && body.servings >= 1 ? body.servings : null;
+  return {kind: 'dish', dish: body.dish, servings};
+}
+
+/** A real recipe from the web for a dish from askHome(), in our format. */
+export async function findRecipe(dish: string, signal: AbortSignal): Promise<Recipe> {
+  const body = await postJson('/api/recipes/generate', {dish}, signal, GENERATE_TIMEOUT_MS);
   if (!body.recipe) throw new Error('No recipe in the reply');
-  return {kind: 'recipe', recipe: body.recipe as Recipe};
+  return body.recipe as Recipe;
 }
 
 /**
