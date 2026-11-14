@@ -8,11 +8,10 @@ import {
 } from '@wearables-ui-toolkit/mrbd/react-router';
 import {RecipesProvider} from './RecipesContext';
 import {CookPage} from './pages/CookPage';
-import {NewRecipePage} from './pages/NewRecipePage';
-import {RecipeListPage} from './pages/RecipeListPage';
+import {HomePage} from './pages/HomePage';
 import './styles.css';
 
-// Pick a recipe (/) or ask for a new one (/new), then cook it (/cook/:id).
+// Say a dish, or reopen the last recipe (/), then cook it (/cook/:id).
 function Root() {
   return (
     <RecipesProvider>
@@ -22,8 +21,7 @@ function Root() {
             <ReactRouterPageTransition>
               {({location}) => (
                 <Routes location={location}>
-                  <Route path="/" element={<RecipeListPage />} />
-                  <Route path="/new" element={<NewRecipePage />} />
+                  <Route path="/" element={<HomePage />} />
                   <Route path="/cook/:id" element={<CookPage />} />
                 </Routes>
               )}

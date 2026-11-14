@@ -5,7 +5,7 @@ import type {UnitSystem} from './units';
 
 // The recipes on this device (see recipeStore.ts), mounted outside the page transition so
 // going back to the list keeps them. There is no server library: every recipe was written
-// by the AI for this cook ("Cook something new"), and voice edits replace it in place.
+// by the AI for this cook (from the dish field on the home screen), and voice edits replace it in place.
 // Also the cook's metric/imperial choice, which every recipe is shown in.
 
 interface RecipesValue {

@@ -27,10 +27,10 @@ body {
   padding: var(--uit-spacing-large);
 }
 
-/* A screen with content that fills the space and a field at the bottom (New recipe). */
+/* A screen with content that fills the space, then a message and a field (Home). */
 .action-page-shell {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   block-size: 100%;
   min-block-size: 0;
   min-inline-size: 0;

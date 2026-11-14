@@ -10,11 +10,12 @@ Live at https://cook.simonnars.com.
 
 Keep the glasses UI simple: plain text lists you scroll, not a phone screen on your face.
 
-- **First, pick a recipe** (`/`): a "Recipes" list of the recipes the AI wrote for this cook,
-  most recent first, then a last row, **"Cook something new"**. There are no built-in
-  recipes. Pinch opens a row; the system Back gesture returns to the list.
-- **Cook something new** (`/new`): the cook says a dish ("carbonara for 4") and the AI finds
-  a real recipe on the web and converts it (`POST /api/recipes/generate`), then cooking starts.
+- **Home** (`/`): a dish field at the bottom. The cook says a dish ("lasagna for 4"), the AI
+  finds a real recipe on the web and converts it (`POST /api/recipes/generate`), and
+  cooking starts. There is no recipe picker and no built-in recipes. Above the field, only
+  the **most recent recipe** as one row ("Back to your recipe"), so a cook who left cooking
+  by accident (system Back) pinches it to return. A new dish simply replaces it on top.
+  Older recipes stay saved on the device (for a "previous recipes" list later) but aren't shown.
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
   steps** in one list; swiping right again does nothing. **Swipe left** (`prev`) goes back
@@ -28,7 +29,7 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   change, rewrites the affected ingredients and steps, and the answer is labelled "RECIPE
   UPDATED" with what changed (~6–8 s). Both lists show the new recipe; the cook stays on the
   same view. "Do I need X?" answers, and marks X optional when the dish works without it.
-- **Metric or imperial** (switch at the bottom of `/`, kept on the device): every recipe
+- **Metric or imperial** (a switch row on `/`, kept on the device): every recipe
   stays stored in metric; the app shows amounts in oz/lb/tsp/tbsp/cups and converts °C,
   g, ml and cm in step text (`app/src/units.ts`). `/api/ask` gets `unit_system` so answers
   match. Small amounts (salt, spices, leaveners, extracts, and any liquid under 50 ml, e.g. 15 ml oil → 1 tbsp) are stored in `tsp`/`tbsp`, or
@@ -82,18 +83,18 @@ Build everything so that port is cheap:
 
 ## AI (`/api/ask`, `/api/recipes/generate`)
 
-- **Gemini on Google Cloud, EU only, except recipe search.** Model `gemini-4-hydrogen`
-  (fallback: `gemini-3.8-flash`, set `GEMINI_MODEL`), location `eu` (the EU multi-region
+- **Gemini on Google Cloud, EU only, except recipe search.** One model for everything,
+  `gemini-3.5-flash-lite`, the fastest (set `GEMINI_MODEL`; the previous model was
+  `gemini-4-hydrogen`, smarter but slower), location `eu` (the EU multi-region
   endpoint `aiplatform.eu.rep.googleapis.com`), reasoning level `LOW` for speed. Project
   `junction-2026-514714`.
 - **The exception, on purpose:** finding a recipe on the web uses Gemini's Google Search
   tool, which Google keeps out of its data residency commitment on every endpoint
   ("Supported capabilities" in the Agent Platform docs) and logs for up to 3 days. This is a
   hackathon project, not production, so we accept that for recipe search only: it runs on
-  the `global` endpoint (`GEMINI_SEARCH_LOCATION`) with the fastest model,
-  `gemini-3.5-flash-lite` (`GEMINI_SEARCH_MODEL`), since writing out the whole recipe is
-  most of its time. The prompt names no example website, so it doesn't favour one.
-  `/api/ask` and the fallback recipe writer stay in the EU on `gemini-4-hydrogen`. Don't "fix" this back without a replacement for web search.
+  the `global` endpoint (`GEMINI_SEARCH_LOCATION`) with the same model (`GEMINI_SEARCH_MODEL` can
+  override it). The prompt names no example website, so it doesn't favour one.
+  `/api/ask` and the fallback recipe writer stay in the EU. Don't "fix" this back without a replacement for web search.
 - **Auth is a service account key, not an API key.** Agent Platform API keys only reach the
   global endpoint, so they can't keep processing in the EU. The service account is
   `cooking-buddy@junction-2026-514714.iam.gserviceaccount.com` with the "Agent Platform
@@ -122,7 +123,7 @@ Build everything so that port is cheap:
   removed) and `edits` (short notes on AI changes). Don't put
   `minItems`/`maxItems` in the Gemini schema: on both lists together Gemini rejects it as
   INVALID_ARGUMENT; Zod enforces list lengths instead.
-- Typical times: a question 1.5–2.5 s, an edit 6–8.5 s (Gemini rewrites the whole recipe),
+- Typical times (measured on `gemini-4-hydrogen`; flash-lite should be faster): a question 1.5–2.5 s, an edit 6–8.5 s (Gemini rewrites the whole recipe),
   a new recipe 6–8 s. The server warms up its Google token and connection at startup and
   every 15 minutes, because a cold first call took about 8 s. A backup request
   (`withBackup` in `server/ai/gemini.js`) covers Gemini's occasional stalls: after 10 s for

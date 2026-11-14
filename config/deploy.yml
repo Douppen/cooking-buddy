@@ -50,7 +50,7 @@ proxy:
 env:
   clear:
     # /api/ask: Gemini on Google Cloud in the EU multi-region (see server/ask.js).
-    GEMINI_MODEL: gemini-4-hydrogen
+    GEMINI_MODEL: gemini-3.5-flash-lite
     GEMINI_LOCATION: eu
   secret:
     # Base64 of the cooking-buddy service account's JSON key (base64 because Kamal's env

@@ -8,14 +8,14 @@
 import { readFileSync } from "node:fs";
 import { GoogleGenAI } from "@google/genai";
 
-export const MODEL = process.env.GEMINI_MODEL ?? "gemini-4-hydrogen";
+// One model for everything: the fastest, since every answer and recipe is mostly output time.
+export const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite";
 export const LOCATION = process.env.GEMINI_LOCATION ?? "eu";
 // Finding recipes on the web uses Gemini's Google Search tool, which Google doesn't keep in
 // the EU on any endpoint, so it runs on the global endpoint (see CLAUDE.md, "AI").
 export const SEARCH_LOCATION = process.env.GEMINI_SEARCH_LOCATION ?? "global";
-// The web search writes a whole recipe as JSON, and output speed is most of its time, so it
-// uses the fastest model. Answers (/api/ask) keep MODEL.
-export const SEARCH_MODEL = process.env.GEMINI_SEARCH_MODEL ?? "gemini-3.5-flash-lite";
+// The web search can use its own model (GEMINI_SEARCH_MODEL); by default it's MODEL.
+export const SEARCH_MODEL = process.env.GEMINI_SEARCH_MODEL ?? MODEL;
 const REQUEST_TIMEOUT_MS = 30_000;
 
 const clients = new Map(); // location -> client, or null without credentials
