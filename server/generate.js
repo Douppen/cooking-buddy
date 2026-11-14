@@ -25,7 +25,7 @@ const SEARCH_TIMEOUT_MS = 20_000;
 const WRITE_BACKUP_AFTER_MS = 10_000;
 const WRITE_TIMEOUT_MS = 18_000;
 
-const NOT_FOOD_MESSAGE = "That doesn't sound like something to cook. Try a dish, like 'carbonara for 4'.";
+const NOT_FOOD_MESSAGE = "That doesn't sound like something to cook. Try a dish, like 'carbonara'.";
 
 // withBackup reports both attempts' errors together (AggregateError).
 function isNotFood(err) {
