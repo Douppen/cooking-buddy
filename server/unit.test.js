@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { cleanAmount, cleanAmountsInText, cleanSpoon, convertUnitSystem, scaleIngredients, spoons, toCelsiusInText } from "./scaling.js";
+import { cleanAmount, cleanAmountsInText, cleanCount, cleanSpoon, convertUnitSystem, scaleIngredients, spoons, toCelsiusInText } from "./scaling.js";
 import { RecipeSchema, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
@@ -231,7 +231,7 @@ test("scaled metric amounts are tidy, small liquids in spoons (same as the app)"
   assert.equal(show(125, "g"), "125 g X");
   assert.equal(show(30, "ml"), "2 tbsp X");
   assert.equal(show(480, "ml"), "480 ml X");
-  assert.equal(show(1.5, "unit"), "1.5 X");
+  assert.equal(show(1.5, "unit"), "1½ X");
 });
 
 test("the cook's servings live on the recipe: kept through edits, used for answers", () => {
@@ -245,6 +245,36 @@ test("the cook's servings live on the recipe: kept through edits, used for answe
   assert.equal(edited.servings, 2);
   assert.equal(edited.base_servings, 4);
   assert.ok(AskRequestSchema.safeParse({ recipe: picked, question: "How much flour?" }).success);
+});
+
+test("whole counts (eggs, garlic cloves) never split; others round to halves", () => {
+  const show = (amount, whole) =>
+    convertUnitSystem([{ id: "x", name: "X", amount, base_unit: "unit", whole }], "metric")[0].display;
+  assert.equal(show(0.3, true), "1 X"); // never 0.3 egg
+  assert.equal(show(2.5, true), "3 X");
+  assert.equal(show(0.3, false), "½ X"); // half a lime is fine
+  assert.equal(show(1.6, false), "1½ X");
+  assert.equal(cleanCount(0.25, true), 1);
+  assert.equal(cleanCount(0.1, false), 0.5);
+  // Eggs and garlic cloves are whole whatever the AI says; a lime is up to the AI.
+  const made = toRecipe(
+    {
+      title: "Test",
+      base_servings: 2,
+      ingredients: [
+        { name: "Large eggs", base_amount: 1.5, base_unit: "unit", substitutes: [], optional: false, whole: false },
+        { name: "Garlic cloves, minced", base_amount: 0.5, base_unit: "unit", substitutes: [], optional: false, whole: false },
+        { name: "Lime", base_amount: 0.3, base_unit: "unit", substitutes: [], optional: false, whole: false },
+        { name: "Butter", base_amount: 30, base_unit: "g", substitutes: [], optional: false, whole: true },
+      ],
+      steps: [{ title: "Mix", instruction: "Mix.", visual_cues: [], timer_sec: null }],
+    },
+    { recipe_id: "gen-test-x", origin: "generated", edits: [] },
+  );
+  assert.deepEqual(
+    made.ingredients.map((i) => [i.base_amount, i.whole]),
+    [[2, true], [1, true], [0.5, false], [30, false]],
+  );
 });
 
 test("generate request validation", () => {

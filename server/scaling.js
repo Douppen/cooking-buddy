@@ -30,7 +30,7 @@ export function scaleIngredients(ingredients, factor) {
  */
 export function convertUnitSystem(scaled, unitSystem) {
   return scaled.map((ing) => {
-    const { amount, unit } = toUnitSystem(ing.amount, ing.base_unit, unitSystem);
+    const { amount, unit } = toUnitSystem(ing.amount, ing.base_unit, unitSystem, ing.whole);
     const display = unit ? `${amount} ${unit} ${ing.name}` : `${amount} ${ing.name}`;
     return { id: ing.id, name: ing.name, amount, unit, display };
   });
@@ -46,9 +46,9 @@ const QUARTERS = [[0, ""], [1 / 4, "¼"], [1 / 2, "½"], [3 / 4, "¾"], [1, ""]]
 const CUP_FRACTIONS = [[0, ""], [1 / 4, "¼"], [1 / 3, "⅓"], [1 / 2, "½"], [2 / 3, "⅔"], [3 / 4, "¾"], [1, ""]];
 const HALVES = [[0, ""], [1 / 2, "½"], [1, ""]];
 
-function toUnitSystem(qty, baseUnit, unitSystem) {
+function toUnitSystem(qty, baseUnit, unitSystem, whole = false) {
   if (SPOON_UNITS.has(baseUnit)) return spoons(qty, baseUnit);
-  if (baseUnit === "unit") return { amount: decimal(qty, 1), unit: "" };
+  if (baseUnit === "unit") return { amount: countText(qty, whole), unit: "" };
   if (unitSystem !== "imperial") {
     // Scaled amounts get the same tidy numbers as stored ones; small liquids read as spoons.
     if (baseUnit === "ml" && qty < SPOONS_BELOW_ML) return spoons(mlInTsp(qty), "tsp");
@@ -69,6 +69,21 @@ function toUnitSystem(qty, baseUnit, unitSystem) {
 
 function decimal(n, digits) {
   return String(Number(n.toFixed(digits)));
+}
+
+// --- Counts ---------------------------------------------------------------------------------
+// Counted ingredients ("unit"): whole ones (eggs, garlic cloves) round to whole numbers, at
+// least 1; others (lime, onion) to halves, at least ½. Same as app/src/units.ts.
+
+/** A count rounded: whole → 1, 2, 3…; otherwise ½, 1, 1½… 0.3 egg → 1; 0.3 lime → 0.5. */
+export function cleanCount(count, whole = false) {
+  if (whole) return Math.max(1, Math.round(count));
+  return Math.max(0.5, Math.round(count * 2) / 2);
+}
+
+/** A count as shown: "1", "3", "½", "1½". */
+export function countText(count, whole = false) {
+  return fraction(cleanCount(count, whole), HALVES);
 }
 
 // --- Spoons and pinches -------------------------------------------------------------------

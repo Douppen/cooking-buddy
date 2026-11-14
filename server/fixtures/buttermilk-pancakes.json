@@ -8,7 +8,7 @@
     { "id": "baking_powder", "name": "Baking powder", "base_amount": 10, "base_unit": "g", "substitutes": [] },
     { "id": "salt", "name": "Salt", "base_amount": 3, "base_unit": "g", "substitutes": [] },
     { "id": "buttermilk", "name": "Buttermilk", "base_amount": 480, "base_unit": "ml", "substitutes": ["milk with 1 tbsp lemon juice per 250 ml, rested 5 minutes", "thinned plain yogurt"] },
-    { "id": "egg", "name": "Egg", "base_amount": 2, "base_unit": "unit", "substitutes": [] },
+    { "id": "egg", "name": "Egg", "base_amount": 2, "base_unit": "unit", "substitutes": [], "whole": true },
     { "id": "butter", "name": "Butter, melted", "base_amount": 30, "base_unit": "g", "substitutes": ["neutral oil"] }
   ],
   "steps": [

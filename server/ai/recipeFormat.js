@@ -20,9 +20,13 @@ const INGREDIENT = {
     },
     substitutes: { type: "array", items: { type: "string" }, description: "Common swaps, at most 2" },
     optional: { type: "boolean", description: "True only if the dish works fine without it" },
+    whole: {
+      type: "boolean",
+      description: "For base_unit 'unit': true if it can only be used whole (eggs, garlic cloves, bay leaves), false if halves work (lime, onion)",
+    },
   },
-  required: ["name", "base_amount", "base_unit", "substitutes", "optional"],
-  propertyOrdering: ["name", "base_amount", "base_unit", "substitutes", "optional"],
+  required: ["name", "base_amount", "base_unit", "substitutes", "optional", "whole"],
+  propertyOrdering: ["name", "base_amount", "base_unit", "substitutes", "optional", "whole"],
 };
 
 const STEP = {
@@ -58,6 +62,7 @@ export const RECIPE_WRITING_RULES = [
   "- Small amounts go in spoons, tsp or tbsp, as the source has them (keep its spoons; never convert them to grams or ml): salt, pepper, spices, dried herbs, baking powder or soda, extracts, and small amounts of oil, vinegar, soy sauce, lemon juice and similar. Up to about 3 tbsp; more goes in g or ml.",
   "- 'pinch' only for 1 or 2 pinches (e.g. a pinch of salt); otherwise use tsp.",
   "- Ingredient names are plain and include prep, e.g. 'Garlic cloves, thinly sliced'.",
+  "- Counted things (unit): set whole to true if they can only be used whole (eggs, garlic cloves, bay leaves, chillies), false if halves work (lime, lemon, onion, avocado). Amounts of whole things are whole numbers.",
   "- Give 0-2 common substitutes per ingredient. Set optional to true only for things the dish works without (garnishes, extras).",
   "- Steps are in cooking order, one action each, at most 18 words, readable at a glance on smart glasses.",
   "- Every step names the amount and unit of each ingredient it uses, as plain text matching the ingredient list, e.g. 'Heat 25 ml olive oil in the pan and brown 750 g beef mince in two batches'. Counted things as numbers: '2 garlic cloves'. If an ingredient is split across steps, give each step its share ('Add half the stock, 250 ml').",
@@ -71,12 +76,13 @@ export function recipeToDraft(recipe) {
   return {
     title: recipe.title,
     base_servings: recipe.base_servings,
-    ingredients: recipe.ingredients.map(({ name, base_amount, base_unit, substitutes, optional }) => ({
+    ingredients: recipe.ingredients.map(({ name, base_amount, base_unit, substitutes, optional, whole }) => ({
       name,
       base_amount,
       base_unit,
       substitutes,
       optional,
+      whole,
     })),
     steps: recipe.steps.map(({ title, instruction, visual_cues, timer_sec }) => ({
       title,

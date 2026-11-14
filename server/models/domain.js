@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { SPOONS_BELOW_ML, cleanAmount, cleanAmountsInText, cleanSpoon, mlInTsp, toCelsiusInText } from "../scaling.js";
+import { SPOONS_BELOW_ML, cleanAmount, cleanAmountsInText, cleanCount, cleanSpoon, mlInTsp, toCelsiusInText } from "../scaling.js";
 
 export const IngredientSchema = z.object({
   id: z.string().describe("Clean snake_case identifier (e.g. 'heavy_cream')"),
@@ -23,6 +23,10 @@ export const IngredientSchema = z.object({
     .boolean()
     .default(false)
     .describe("The dish still works without it (answers 'do I need this?')"),
+  whole: z
+    .boolean()
+    .default(false)
+    .describe("A count that only comes whole (eggs, garlic cloves): never 0.3 egg, at least 1"),
 });
 
 export const StepSchema = z.object({
@@ -117,8 +121,8 @@ export function toRecipe(draft, { recipe_id, origin, edits, previous, source = n
 
 // g/ml rounded as recipes write them; under 50 ml in spoons ("15 ml" → "1 tbsp"); spoons to
 // ¼ tsp or ½ tbsp, more than 2 pinches as tsp; counts unchanged.
-function cleanIngredientAmount(amount, unit) {
-  if (unit === "unit") return { base_amount: amount, base_unit: unit };
+function cleanIngredientAmount(amount, unit, whole) {
+  if (unit === "unit") return { base_amount: cleanCount(amount, whole), base_unit: unit };
   if (unit === "ml" && amount < SPOONS_BELOW_ML) {
     amount = mlInTsp(amount);
     unit = "tsp";
@@ -128,6 +132,10 @@ function cleanIngredientAmount(amount, unit) {
   return { base_amount: spoon.amount, base_unit: spoon.unit };
 }
 
+// Counted ingredients that only come whole, whatever the AI says: eggs (and their yolks and
+// whites), garlic cloves, bay leaves. The AI flags others (whole: true).
+const ALWAYS_WHOLE = /\b(?:eggs?|egg (?:yolks?|whites?)|(?:garlic )?cloves?(?: of garlic)?|bay lea(?:f|ves))\b/i;
+
 // Every AI recipe is tidied the same way, whether the AI wrote it, found it on the web or
 // edited it: temperatures in °C (the app converts for imperial; a web recipe in °F sometimes
 // slips through) and g/ml amounts rounded as a recipe writer would ("113 g" → "110 g").
@@ -136,11 +144,10 @@ function tidy(draft) {
   return {
     ...draft,
     title: toCelsiusInText(draft.title),
-    ingredients: draft.ingredients.map((ing) => ({
-      ...ing,
-      name: text(ing.name),
-      ...cleanIngredientAmount(ing.base_amount, ing.base_unit),
-    })),
+    ingredients: draft.ingredients.map((ing) => {
+      const whole = ing.base_unit === "unit" && (ing.whole || ALWAYS_WHOLE.test(ing.name));
+      return { ...ing, name: text(ing.name), whole, ...cleanIngredientAmount(ing.base_amount, ing.base_unit, whole) };
+    }),
     steps: draft.steps.map((step) => ({
       ...step,
       instruction: text(step.instruction),

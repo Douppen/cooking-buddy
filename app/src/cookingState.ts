@@ -9,7 +9,7 @@
 // updated recipe.
 
 import type {Ingredient, Recipe} from './api';
-import {countWords, inUnitSystem, measureText, scaleAmountsInText, type UnitSystem} from './units';
+import {countWords, inUnitSystem, isWhole, measureText, scaleAmountsInText, type CountWord, type UnitSystem} from './units';
 
 export type View = 'ingredients' | 'steps';
 
@@ -91,7 +91,7 @@ export function scalingFor(recipe: Recipe): Scaling {
 
 export interface Scaling {
   factor: number;
-  counted: string[];
+  counted: CountWord[];
 }
 
 const UNSCALED: Scaling = {factor: 1, counted: []};
@@ -102,7 +102,7 @@ const UNSCALED: Scaling = {factor: 1, counted: []};
  * the AI (server/scaling.js), so answers match what the cook sees.
  */
 export function ingredientLine(ingredient: Ingredient, system: UnitSystem, scaling: Scaling = UNSCALED): string {
-  const amount = measureText(ingredient.base_amount * scaling.factor, ingredient.base_unit, system);
+  const amount = measureText(ingredient.base_amount * scaling.factor, ingredient.base_unit, system, isWhole(ingredient));
   const line = `${amount} ${inUnitSystem(ingredient.name, system)}`;
   return ingredient.optional ? `${line} (optional)` : line;
 }

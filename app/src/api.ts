@@ -14,6 +14,8 @@ export interface Ingredient {
   substitutes: string[];
   /** The dish still works without it. */
   optional?: boolean;
+  /** A count that only comes whole (eggs, garlic cloves): never 0.3 egg, at least 1. */
+  whole?: boolean;
 }
 
 export interface RecipeStep {

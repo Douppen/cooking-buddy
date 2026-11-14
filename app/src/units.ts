@@ -34,9 +34,9 @@ const SMALL_INCHES: Fractions = [[0, ''], [1 / 8, '⅛'], [1 / 4, '¼']];
  * Imperial: grams become oz (lb from about 1 lb up); millilitres become tsp below 1 tbsp, tbsp
  * below ¼ cup, then cups, in the fractions a measuring set has. Counts never change.
  */
-export function measure(amount: number, unit: BaseUnit, system: UnitSystem): Measure {
+export function measure(amount: number, unit: BaseUnit, system: UnitSystem, whole = false): Measure {
   if (unit === 'tsp' || unit === 'tbsp' || unit === 'pinch') return spoons(amount, unit);
-  if (unit === 'unit') return {amount: decimal(amount, 1), unit: ''};
+  if (unit === 'unit') return {amount: countText(amount, whole), unit: ''};
   if (system === 'metric') {
     // Scaled amounts get the same tidy numbers as stored ones (cleanAmount), and small liquid
     // amounts read as spoons: 30 ml → 2 tbsp. server/scaling.js does the same for answers.
@@ -55,6 +55,16 @@ export function measure(amount: number, unit: BaseUnit, system: UnitSystem): Mea
   const cups = amount / ML_PER_CUP;
   const shown = fraction(cups, cups < 4 ? CUP_FRACTIONS : QUARTERS);
   return {amount: shown, unit: cups < 1.125 ? 'cup' : 'cups'};
+}
+
+/**
+ * A count (base_unit 'unit') as shown: whole ones (eggs, garlic cloves) as whole numbers, at
+ * least 1; others (lime, onion) in halves, at least ½. 0.3 egg → "1", 0.3 lime → "½", 1.5
+ * limes → "1½". Same as countText() in server/scaling.js.
+ */
+export function countText(count: number, whole = false): string {
+  const rounded = whole ? Math.max(1, Math.round(count)) : Math.max(0.5, Math.round(count * 2) / 2);
+  return fraction(rounded, HALVES);
 }
 
 /** Under this many ml, a metric amount is shown in spoons (a metric tsp is 5 ml). */
@@ -91,8 +101,8 @@ export function spoons(amount: number, unit: 'tsp' | 'tbsp' | 'pinch'): Measure 
 }
 
 /** "250 g", "1¼ cups", or "2" for a count. */
-export function measureText(amount: number, unit: BaseUnit, system: UnitSystem): string {
-  const shown = measure(amount, unit, system);
+export function measureText(amount: number, unit: BaseUnit, system: UnitSystem, whole = false): string {
+  const shown = measure(amount, unit, system, whole);
   return shown.unit ? `${shown.amount} ${shown.unit}` : shown.amount;
 }
 
@@ -157,12 +167,34 @@ function inflect(word: string, count: number): string {
  * The words that identify counted ingredients (base_unit 'unit'): "Garlic cloves, minced"
  * gives "garlic" and "clove". For scaleAmountsInText().
  */
-export function countWords(ingredients: ReadonlyArray<{name: string; base_unit: string}>): string[] {
+export function countWords(
+  ingredients: ReadonlyArray<{name: string; base_unit: string; whole?: boolean}>,
+): CountWord[] {
   return ingredients
     .filter(ing => ing.base_unit === 'unit')
-    .flatMap(ing => ing.name.split(',')[0].toLowerCase().split(/[^a-z]+/))
-    .filter(word => word.length >= 3 && !NOT_INGREDIENT_WORDS.has(word))
-    .map(nounSingular);
+    .flatMap(ing =>
+      ing.name
+        .split(',')[0]
+        .toLowerCase()
+        .split(/[^a-z]+/)
+        .filter(word => word.length >= 3 && !NOT_INGREDIENT_WORDS.has(word))
+        .map(word => ({word: nounSingular(word), whole: isWhole(ing)})),
+    );
+}
+
+// Counted ingredients that only come whole even on recipes saved without the flag: eggs,
+// garlic cloves, bay leaves. Same list as ALWAYS_WHOLE in server/models/domain.js.
+const ALWAYS_WHOLE = /\b(?:eggs?|egg (?:yolks?|whites?)|(?:garlic )?cloves?(?: of garlic)?|bay lea(?:f|ves))\b/i;
+
+/** Whether a counted ingredient only comes whole: its flag, or the always-whole list. */
+export function isWhole(ingredient: {name: string; whole?: boolean}): boolean {
+  return ingredient.whole === true || ALWAYS_WHOLE.test(ingredient.name);
+}
+
+/** A word of a counted ingredient's name, and whether that ingredient only comes whole. */
+export interface CountWord {
+  word: string;
+  whole: boolean;
 }
 
 /**
@@ -171,7 +203,7 @@ export function countWords(ingredients: ReadonlyArray<{name: string; base_unit: 
  * eggs". g and ml get cleanAmount() (ml under 50 as spoons), spoons and pinches spoons(),
  * counts one decimal. `counted` is countWords(recipe.ingredients). Factor 1: unchanged.
  */
-export function scaleAmountsInText(text: string, factor: number, counted: readonly string[]): string {
+export function scaleAmountsInText(text: string, factor: number, counted: readonly CountWord[]): string {
   if (factor === 1) return text;
   return text.replace(
     SCALABLE_IN_TEXT,
@@ -187,14 +219,19 @@ export function scaleAmountsInText(text: string, factor: number, counted: readon
       // A count: only if a counted ingredient follows, and not a time or size ("2 cm"). The
       // ingredient's noun follows the new number: "2 large eggs" at ½ → "1 large egg".
       const parts = (words ?? '').split(/(\s+)/); // words and the spaces between them
-      const isIngredient = (part: string | undefined) => part !== undefined && counted.includes(nounSingular(part));
+      const wordOf = (part: string | undefined) =>
+        part === undefined ? undefined : counted.find(c => c.word === nounSingular(part));
+      const isIngredient = (part: string | undefined) => wordOf(part) !== undefined;
       let nounAt = parts.findIndex(isIngredient);
       // parts: ['', ' ', 'garlic', ' ', 'cloves']; the first word is parts[2].
       if (NOT_COUNT_WORDS.has(parts[2]?.toLowerCase() ?? '') || nounAt < 0) return match;
       // The noun ends the run of ingredient words: "garlic cloves", "cherry tomatoes".
       while (isIngredient(parts[nounAt + 2])) nounAt += 2;
-      parts[nounAt] = inflect(parts[nounAt], Math.max(...values));
-      return values.map(v => decimal(v, 1)).join('–') + parts.join('');
+      // Whole things (eggs) as whole numbers, others in halves, like the ingredient list.
+      const whole = wordOf(parts[nounAt])?.whole ?? false;
+      const shown = values.map(v => countText(v, whole));
+      parts[nounAt] = inflect(parts[nounAt], Math.max(...shown.map(amountValue)));
+      return shown.join('–') + parts.join('');
     },
   );
 }

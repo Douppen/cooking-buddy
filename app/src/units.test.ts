@@ -2,7 +2,7 @@
 // the types). Not part of the typecheck (see tsconfig.json), so it needs no Node types.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {countWords, inUnitSystem, measureText, scaleAmountsInText} from './units.ts';
+import {countText, countWords, inUnitSystem, isWhole, measureText, scaleAmountsInText} from './units.ts';
 
 test('metric amounts are shown as stored', () => {
   assert.equal(measureText(250, 'g', 'metric'), '250 g');
@@ -37,7 +37,7 @@ test('imperial volumes: tsp, tbsp, then cups', () => {
 
 test('counts stay counts', () => {
   assert.equal(measureText(2, 'unit', 'imperial'), '2');
-  assert.equal(measureText(0.5, 'unit', 'imperial'), '0.5');
+  assert.equal(measureText(0.5, 'unit', 'imperial'), '½'); // halves as on a measuring set
 });
 
 test('step text: temperatures, amounts and lengths', () => {
@@ -87,7 +87,7 @@ test('scaled metric amounts are tidy, small liquids in spoons', () => {
   assert.equal(measureText(30, 'ml', 'metric'), '2 tbsp');
   assert.equal(measureText(5, 'ml', 'metric'), '1 tsp');
   assert.equal(measureText(60, 'ml', 'metric'), '60 ml');
-  assert.equal(measureText(1.5, 'unit', 'metric'), '1.5');
+  assert.equal(measureText(1.5, 'unit', 'metric'), '1½');
 });
 
 test('step text scales amounts and counted ingredients, not times or sizes', () => {
@@ -122,8 +122,28 @@ test('a scaled count keeps its noun in the right number', () => {
   assert.equal(scale('Halve 2 cherry tomatoes.', 0.5), 'Halve 1 cherry tomato.');
   assert.equal(scale('Halve 1 cherry tomato.', 2), 'Halve 2 cherry tomatoes.');
   assert.equal(scale('Slice 1 peach.', 3), 'Slice 3 peaches.');
-  assert.equal(scale('Use 1 egg.', 0.5), 'Use 0.5 egg.');
+  assert.equal(scale('Use 1 egg.', 0.5), 'Use 1 egg.'); // eggs only come whole
   assert.equal(scale('Beat 1–2 eggs.', 2), 'Beat 2–4 eggs.');
   // A time before an ingredient word is still a time.
   assert.equal(scale('Simmer 5 minutes garlic cloves and all.', 2), 'Simmer 5 minutes garlic cloves and all.');
+});
+
+test('whole counts never split; others round to halves', () => {
+  assert.equal(measureText(0.3, 'unit', 'metric', true), '1');
+  assert.equal(measureText(2.5, 'unit', 'metric', true), '3');
+  assert.equal(measureText(0.3, 'unit', 'metric'), '½');
+  assert.equal(countText(1.6), '1½');
+  assert.ok(isWhole({name: 'Large eggs'})); // no flag (older saved recipe): still whole
+  assert.ok(isWhole({name: 'Garlic cloves, minced'}));
+  assert.ok(!isWhole({name: 'Lime'}));
+  assert.ok(isWhole({name: 'Red chillies', whole: true}));
+  const counted = countWords([
+    {name: 'Large eggs', base_unit: 'unit'},
+    {name: 'Red chillies', base_unit: 'unit', whole: true},
+    {name: 'Lime', base_unit: 'unit'},
+  ]);
+  const scale = (text: string, factor: number) => scaleAmountsInText(text, factor, counted);
+  assert.equal(scale('Whisk 3 large eggs.', 0.25), 'Whisk 1 large egg.');
+  assert.equal(scale('Chop 1 red chilli and squeeze 1 lime.', 0.3), 'Chop 1 red chilli and squeeze ½ lime.');
+  assert.equal(scale('Whisk 3 large eggs.', 0.5), 'Whisk 2 large eggs.');
 });

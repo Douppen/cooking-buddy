@@ -130,6 +130,10 @@ Build everything so that port is cheap:
   (`scaleAmountsInText()`: numbers with a unit or a counted ingredient, not times or sizes)
   with the same tidy rounding as stored amounts (`cleanAmount()`, spoons under 50 ml), in
   `app/src/units.ts` and `server/scaling.js`. `/api/ask` answers for `recipe.servings`.
+- **Counts:** counted ingredients (`base_unit: "unit"`) have `whole`: true for things that
+  only come whole (eggs, garlic cloves, bay leaves; set by the AI, and always for a fixed
+  list), shown as whole numbers, at least 1. Others (lime, onion) round to halves, at
+  least ½. Same in the list, scaled step text and answers.
 - **Recipe format for the AI:** Gemini writes a "draft" (`RecipeDraftSchema`: no ids or step
   indexes) as structured JSON (`server/ai/recipeFormat.js`), and `toRecipe()` in
   `models/domain.js` turns it into a valid `Recipe`. Ingredients have `optional`; recipes
