@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { cleanAmount, cleanAmountsInText, cleanCount, cleanSpoon, convertUnitSystem, scaleIngredients, spoons, toCelsiusInText } from "./scaling.js";
-import { RecipeSchema, toRecipe } from "./models/domain.js";
+import { RecipeSchema, decodeEntities, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
 import { NotFoodError, namedDish, sourceOf, toFound, toSorted } from "./ai/generate.js";
@@ -339,4 +339,14 @@ test("a recipe change gets a standard answer, not Gemini's words", () => {
   });
   assert.equal(toAnswer({ change_summary: "", answer: "Yes.", recipe: draft }).draft, null); // no summary: no change
   assert.throws(() => toAnswer({ change_summary: "", answer: "" }));
+});
+
+test("HTML entities copied from a web page are decoded", () => {
+  assert.equal(decodeEntities("Add &#189; tsp ground nutmeg &amp; salt."), "Add ½ tsp ground nutmeg & salt.");
+  assert.equal(decodeEntities("Bake at 180&deg;C, &frac14; cup, &#xBD; lemon, &nbsp;ok"), "Bake at 180°C, ¼ cup, ½ lemon,  ok");
+  assert.equal(decodeEntities("Salt & pepper; &unknown; stays"), "Salt & pepper; &unknown; stays");
+  const draft = recipeToDraft(recipe);
+  draft.steps[0].instruction = "Add &#189; tsp ground nutmeg. Simmer 5 min.";
+  const tidied = toRecipe(draft, { recipe_id: "x", origin: "generated", edits: [] });
+  assert.equal(tidied.steps[0].instruction, "Add ½ tsp ground nutmeg. Simmer 5 min.");
 });

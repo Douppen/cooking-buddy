@@ -137,9 +137,10 @@ function cleanIngredientAmount(amount, unit, whole) {
 const ALWAYS_WHOLE = /\b(?:eggs?|egg (?:yolks?|whites?)|(?:garlic )?cloves?(?: of garlic)?|bay lea(?:f|ves))\b/i;
 
 // Every AI recipe is tidied the same way, whether the AI wrote it, found it on the web or
-// edited it: temperatures in °C (the app converts for imperial; a web recipe in °F sometimes
+// edited it: HTML entities copied from a web page decoded ("&#189; tsp" → "½ tsp"), temperatures in °C (the app converts for imperial; a web recipe in °F sometimes
 // slips through) and g/ml amounts rounded as a recipe writer would ("113 g" → "110 g").
-function tidy(draft) {
+function tidy(raw) {
+  const draft = decodeEntitiesIn(raw);
   const text = (s) => cleanAmountsInText(toCelsiusInText(s));
   return {
     ...draft,
@@ -154,4 +155,33 @@ function tidy(draft) {
       visual_cues: step.visual_cues.map(text),
     })),
   };
+}
+
+// HTML entities that a recipe copied from a web page can carry: numeric ones ("&#189;",
+// "&#xBD;") and the named ones recipes use.
+const NAMED_ENTITIES = {
+  amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", nbsp: " ", deg: "°", frac12: "½", frac14: "¼",
+  frac34: "¾", frac13: "⅓", frac23: "⅔", frac18: "⅛", ndash: "–", mdash: "—", times: "×",
+  rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", hellip: "…", eacute: "é", egrave: "è",
+  ntilde: "ñ", uuml: "ü", ouml: "ö", auml: "ä", ccedil: "ç",
+};
+
+export function decodeEntities(text) {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+\d*);/gi, (match, code) => {
+    if (code[0] === "#") {
+      const n = code[1].toLowerCase() === "x" ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : match;
+    }
+    return NAMED_ENTITIES[code.toLowerCase()] ?? match;
+  });
+}
+
+// Every string in the draft, decoded.
+function decodeEntitiesIn(value) {
+  if (typeof value === "string") return decodeEntities(value);
+  if (Array.isArray(value)) return value.map(decodeEntitiesIn);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, decodeEntitiesIn(v)]));
+  }
+  return value;
 }
