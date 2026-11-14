@@ -2,15 +2,15 @@
 // writes them (/api/recipes/generate) and each question sends the whole recipe back to
 // /api/ask unchanged, so the server sees exactly what the cook follows, edits included.
 
-import type {UnitSystem} from './units';
+import type {BaseUnit, UnitSystem} from './units';
 
 export interface Ingredient {
   id: string;
   name: string;
   /** Amount for the recipe's base_servings, in base_unit. */
   base_amount: number;
-  /** 'unit' = a count (eggs, cloves). */
-  base_unit: 'g' | 'ml' | 'unit';
+  /** 'unit' = a count (eggs, cloves). tsp, tbsp and pinch look the same in both systems. */
+  base_unit: BaseUnit;
   substitutes: string[];
   /** The dish still works without it. */
   optional?: boolean;

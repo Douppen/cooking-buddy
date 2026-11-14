@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { cleanAmount, cleanAmountsInText, toCelsiusInText } from "../scaling.js";
+import { cleanAmount, cleanAmountsInText, cleanSpoon, toCelsiusInText } from "../scaling.js";
 
 export const IngredientSchema = z.object({
   id: z.string().describe("Clean snake_case identifier (e.g. 'heavy_cream')"),
@@ -13,8 +13,8 @@ export const IngredientSchema = z.object({
     .positive()
     .describe("Canonical quantity corresponding to Recipe.base_servings"),
   base_unit: z
-    .enum(["g", "ml", "unit"])
-    .describe("Normalized metric unit: 'g', 'ml', or 'unit'"),
+    .enum(["g", "ml", "unit", "tsp", "tbsp", "pinch"])
+    .describe("'g', 'ml', 'unit' (a count), or spoons for small amounts: 'tsp', 'tbsp', 'pinch' (1-2 only)"),
   substitutes: z
     .array(z.string())
     .default([])
@@ -103,6 +103,15 @@ export function toRecipe(draft, { recipe_id, origin, edits, previous, source = n
   return RecipeSchema.parse({ ...parsed, recipe_id, ingredients, steps, origin, edits, source });
 }
 
+// g/ml rounded as recipes write them; spoons to ¼ tsp or ½ tbsp, more than 2 pinches as tsp;
+// counts unchanged.
+function cleanIngredientAmount(amount, unit) {
+  if (unit === "unit") return { base_amount: amount, base_unit: unit };
+  if (unit === "g" || unit === "ml") return { base_amount: cleanAmount(amount), base_unit: unit };
+  const spoon = cleanSpoon(amount, unit);
+  return { base_amount: spoon.amount, base_unit: spoon.unit };
+}
+
 // Every AI recipe is tidied the same way, whether the AI wrote it, found it on the web or
 // edited it: temperatures in °C (the app converts for imperial; a web recipe in °F sometimes
 // slips through) and g/ml amounts rounded as a recipe writer would ("113 g" → "110 g").
@@ -114,7 +123,7 @@ function tidy(draft) {
     ingredients: draft.ingredients.map((ing) => ({
       ...ing,
       name: text(ing.name),
-      base_amount: ing.base_unit === "unit" ? ing.base_amount : cleanAmount(ing.base_amount),
+      ...cleanIngredientAmount(ing.base_amount, ing.base_unit),
     })),
     steps: draft.steps.map((step) => ({
       ...step,

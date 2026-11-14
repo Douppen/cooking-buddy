@@ -13,8 +13,10 @@ const INGREDIENT = {
     base_amount: { type: "number", minimum: 0, description: "Amount for base_servings" },
     base_unit: {
       type: "string",
-      enum: ["g", "ml", "unit"],
-      description: "g for solids, ml for liquids, unit for countable things (eggs, cloves, lemons)",
+      enum: ["g", "ml", "unit", "tsp", "tbsp", "pinch"],
+      description:
+        "g for solids, ml for liquids, unit for countable things (eggs, cloves, lemons); " +
+        "tsp/tbsp for small amounts of salt, spices, leaveners, extracts; pinch only for 1 or 2 pinches",
     },
     substitutes: { type: "array", items: { type: "string" }, description: "Common swaps, at most 2" },
     optional: { type: "boolean", description: "True only if the dish works fine without it" },
@@ -52,7 +54,9 @@ export const RECIPE_DRAFT_JSON_SCHEMA = {
 
 export const RECIPE_WRITING_RULES = [
   "Recipe format rules:",
-  "- Metric amounts for base_servings: g for solids, ml for liquids, unit for countable things.",
+  "- Amounts for base_servings: g for solids, ml for liquids, unit for countable things.",
+  "- Small amounts of salt, pepper, spices, dried herbs, baking powder or soda, extracts and similar go in spoons: tsp or tbsp, as the source has them (keep its spoons; never convert them to grams). Up to about 4 tbsp; more goes in g or ml.",
+  "- 'pinch' only for 1 or 2 pinches (e.g. a pinch of salt); otherwise use tsp.",
   "- Ingredient names are plain and include prep, e.g. 'Garlic cloves, thinly sliced'.",
   "- Give 0-2 common substitutes per ingredient. Set optional to true only for things the dish works without (garnishes, extras).",
   "- Steps are in cooking order, one action each, at most 18 words, readable at a glance on smart glasses.",

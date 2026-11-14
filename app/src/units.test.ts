@@ -57,3 +57,23 @@ test('step text: leaves other words and numbers alone', () => {
   assert.equal(inUnitSystem(text, 'imperial'), text);
   assert.equal(inUnitSystem('Weigh out 1,000 g.', 'imperial'), 'Weigh out 1,000 g.');
 });
+
+test('spoons and pinches look the same in both systems', () => {
+  for (const system of ['metric', 'imperial'] as const) {
+    assert.equal(measureText(1, 'tsp', system), '1 tsp');
+    assert.equal(measureText(0.5, 'tsp', system), '½ tsp');
+    assert.equal(measureText(1.5, 'tbsp', system), '1½ tbsp');
+    assert.equal(measureText(1, 'pinch', system), '1 pinch');
+    assert.equal(measureText(2, 'pinch', system), '2 pinches');
+  }
+});
+
+test('scaled spoons move between tsp and tbsp; more than 2 pinches become tsp', () => {
+  assert.equal(measureText(0.1, 'tsp', 'metric'), '¼ tsp'); // never 0
+  assert.equal(measureText(3, 'tsp', 'metric'), '1 tbsp');
+  assert.equal(measureText(4.5, 'tsp', 'metric'), '1½ tbsp');
+  assert.equal(measureText(0.5, 'tbsp', 'metric'), '1½ tsp');
+  assert.equal(measureText(0.5, 'pinch', 'metric'), '1 pinch');
+  assert.equal(measureText(4, 'pinch', 'metric'), '¼ tsp');
+  assert.equal(measureText(8, 'pinch', 'metric'), '½ tsp');
+});

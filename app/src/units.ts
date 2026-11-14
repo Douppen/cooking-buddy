@@ -7,6 +7,9 @@
 
 export type UnitSystem = 'metric' | 'imperial';
 
+/** How a recipe stores an amount: g, ml, a count, or spoons and pinches (same in both systems). */
+export type BaseUnit = 'g' | 'ml' | 'unit' | 'tsp' | 'tbsp' | 'pinch';
+
 /** An amount to show: "250" + "g", "8.8" + "oz", "1¼" + "cups", or "2" + "" for a count. */
 export interface Measure {
   amount: string;
@@ -31,7 +34,8 @@ const SMALL_INCHES: Fractions = [[0, ''], [1 / 8, '⅛'], [1 / 4, '¼']];
  * Imperial: grams become oz (lb from about 1 lb up); millilitres become tsp below 1 tbsp, tbsp
  * below ¼ cup, then cups, in the fractions a measuring set has. Counts never change.
  */
-export function measure(amount: number, unit: 'g' | 'ml' | 'unit', system: UnitSystem): Measure {
+export function measure(amount: number, unit: BaseUnit, system: UnitSystem): Measure {
+  if (unit === 'tsp' || unit === 'tbsp' || unit === 'pinch') return spoons(amount, unit);
   if (system === 'metric' || unit === 'unit') return {amount: decimal(amount, 1), unit: unit === 'unit' ? '' : unit};
   if (unit === 'g') {
     const oz = amount / G_PER_OZ;
@@ -47,8 +51,26 @@ export function measure(amount: number, unit: 'g' | 'ml' | 'unit', system: UnitS
   return {amount: shown, unit: cups < 1.125 ? 'cup' : 'cups'};
 }
 
+/**
+ * Spoons and pinches, the same in both unit systems: tsp in quarters, tbsp in halves, 3 tsp
+ * or more as tbsp, under 1 tbsp as tsp. A pinch is only ever 1 or 2; more (from scaling up)
+ * becomes tsp, 16 pinches to the tsp. server/scaling.js spoons() follows the same rules.
+ */
+export function spoons(amount: number, unit: 'tsp' | 'tbsp' | 'pinch'): Measure {
+  if (unit === 'pinch') {
+    if (amount <= 2.5) {
+      const pinches = Math.max(1, Math.round(amount));
+      return {amount: String(pinches), unit: pinches === 1 ? 'pinch' : 'pinches'};
+    }
+    return spoons(amount / 16, 'tsp');
+  }
+  const tsp = unit === 'tbsp' ? amount * 3 : amount;
+  if (tsp < 2.875) return {amount: fraction(tsp, QUARTERS), unit: 'tsp'};
+  return {amount: fraction(tsp / 3, HALVES), unit: 'tbsp'};
+}
+
 /** "250 g", "1¼ cups", or "2" for a count. */
-export function measureText(amount: number, unit: 'g' | 'ml' | 'unit', system: UnitSystem): string {
+export function measureText(amount: number, unit: BaseUnit, system: UnitSystem): string {
   const shown = measure(amount, unit, system);
   return shown.unit ? `${shown.amount} ${shown.unit}` : shown.amount;
 }

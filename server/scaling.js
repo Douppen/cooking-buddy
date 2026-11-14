@@ -21,7 +21,9 @@ export function scaleIngredients(ingredients, factor) {
  * unit system. Metric is shown as stored, to one decimal. Imperial: grams become oz (lb
  * from about 1 lb up); millilitres become tsp below 1 tbsp, tbsp below ¼ cup, then cups,
  * in the fractions a measuring set has. Counts (eggs, cloves) never change.
- * @param {Array<{id: string, name: string, amount: number, base_unit: 'g'|'ml'|'unit'}>} scaled
+ * Spoons and pinches look the same in both systems (see spoons()).
+ * @param {Array<{id: string, name: string, amount: number, base_unit: string}>} scaled
+ *   base_unit: 'g' | 'ml' | 'unit' | 'tsp' | 'tbsp' | 'pinch'
  * @param {'metric'|'imperial'} unitSystem
  * @returns {Array<{id: string, name: string, amount: string, unit: string, display: string}>}
  *   amount as shown ("1¼"); unit is "" for counts
@@ -45,6 +47,7 @@ const CUP_FRACTIONS = [[0, ""], [1 / 4, "¼"], [1 / 3, "⅓"], [1 / 2, "½"], [2
 const HALVES = [[0, ""], [1 / 2, "½"], [1, ""]];
 
 function toUnitSystem(qty, baseUnit, unitSystem) {
+  if (SPOON_UNITS.has(baseUnit)) return spoons(qty, baseUnit);
   if (unitSystem !== "imperial" || baseUnit === "unit") {
     return { amount: decimal(qty, 1), unit: baseUnit === "unit" ? "" : baseUnit };
   }
@@ -63,6 +66,44 @@ function toUnitSystem(qty, baseUnit, unitSystem) {
 
 function decimal(n, digits) {
   return String(Number(n.toFixed(digits)));
+}
+
+// --- Spoons and pinches -------------------------------------------------------------------
+// Small amounts of salt, spices, leaveners and extracts are kept in spoons, as recipes
+// write them, and look the same in metric and imperial. Same rules as spoons() in
+// app/src/units.ts: change both together.
+
+const SPOON_UNITS = new Set(["tsp", "tbsp", "pinch"]);
+
+/** As a number of teaspoons, before rounding: 3 tsp to the tbsp, 16 pinches to the tsp. */
+function inTsp(amount, unit) {
+  return unit === "tbsp" ? amount * 3 : unit === "pinch" ? amount / 16 : amount;
+}
+
+/**
+ * A spoon amount as shown: tsp in quarters, tbsp in halves, 3 tsp or more as tbsp, under
+ * 1 tbsp as tsp. A pinch is only ever 1 or 2; more becomes tsp. Never 0.
+ * @returns {{ amount: string, unit: string }}  e.g. { amount: "1½", unit: "tbsp" }
+ */
+export function spoons(amount, unit) {
+  if (unit === "pinch" && amount <= 2.5) {
+    const pinches = Math.max(1, Math.round(amount));
+    return { amount: String(pinches), unit: pinches === 1 ? "pinch" : "pinches" };
+  }
+  const tsp = inTsp(amount, unit);
+  if (tsp < 2.875) return { amount: fraction(tsp, QUARTERS), unit: "tsp" };
+  return { amount: fraction(tsp / 3, HALVES), unit: "tbsp" };
+}
+
+/**
+ * A stored spoon amount, tidied by the same rules: { 0.3, "tsp" } → { 0.25, "tsp" },
+ * { 4, "pinch" } → { 0.25, "tsp" }, { 0.5, "tbsp" } → { 1.5, "tsp" }, { 6, "tsp" } → { 2, "tbsp" }.
+ */
+export function cleanSpoon(amount, unit) {
+  if (unit === "pinch" && amount <= 2.5) return { amount: Math.max(1, Math.round(amount)), unit };
+  const tsp = inTsp(amount, unit);
+  if (tsp < 2.875) return { amount: Math.max(Math.round(tsp * 4) / 4, 0.25), unit: "tsp" };
+  return { amount: Math.round((tsp / 3) * 2) / 2, unit: "tbsp" };
 }
 
 // --- Clean amounts ------------------------------------------------------------------------

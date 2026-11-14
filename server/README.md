@@ -117,8 +117,9 @@ went (`ok`, `ms`, `queries`, `source`, or `error`).
 
 ### `models/domain.js` (recipe schema)
 
-The **Zod** recipe schema, used for requests and AI output: base metric units
-(`g`, `ml`, `unit`), substitutes, optional ingredients, short step instructions, visual
+The **Zod** recipe schema, used for requests and AI output: base units `g`, `ml`, `unit`
+(a count), and `tsp`, `tbsp` or `pinch` (1–2 only) for small amounts of salt, spices,
+leaveners and extracts; substitutes, optional ingredients, short step instructions, visual
 cues, timers, `origin` (`generated`; `library` only on recipes saved before the built-in
 recipes were removed) and `edits`. Also `RecipeDraftSchema` (a
 recipe as the AI writes it, without ids) and `toRecipe()`, which turns a draft into a valid
