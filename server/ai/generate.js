@@ -21,11 +21,11 @@ const SERVINGS_RULE =
 
 const INTENT_RULE = [
   "First decide what the cook wants and set intent:",
-  "- 'recipe': to cook a particular dish now. They name a dish or a food wish to cook ('lasagna', 'something quick with chicken'), or pick one from earlier in the conversation ('the second one', 'let's do the curry').",
-  "- 'chat': to talk about food: ideas or inspiration, what to make with what they have, advice, a cooking or food question ('what can I make with rice and eggs?', 'ideas for a light dinner', 'can I freeze cooked rice?').",
-  "- 'not_food': anything else: other topics, gibberish, jokes, or something that isn't safe to eat. Then leave out everything else.",
-  "For 'chat': leave out recipe. Write answer: one to three short sentences, at most 30 words, plain text, no lists or markdown; it is read aloud on smart glasses. Add up to 3 suggestions only when you suggest dishes: short dish names the cook could ask a recipe for ('Egg fried rice'), else an empty list.",
-  "Earlier turns of the conversation, if any, come before what the cook says now: use them for follow-ups ('something vegetarian instead', 'the second one').",
+  "- 'recipe': to cook one particular dish now. They name a dish or a food wish to cook ('lasagna', 'something quick with chicken'), or pick one dish from earlier in the conversation ('the second one', 'let's do the curry').",
+  "- 'chat': to talk about food, cooking, ingredients or drinks: ideas or inspiration, what to make with what they have, advice, a cooking question ('what can I make with rice and eggs?', 'ideas for a light dinner', 'can I freeze cooked rice?'). A follow-up that changes or narrows earlier ideas ('something without eggs instead?', 'anything vegetarian?') is 'chat' too: give new ideas, don't pick a recipe for them.",
+  "- 'not_food': anything that isn't about food, cooking or drinks, even if phrased as a question: sports, news, weather, people, homework, code, jokes, gibberish, or something that isn't safe to eat. Then leave out everything else.",
+  "For 'chat': leave out recipe. Write answer: one to three short sentences, at most 30 words, plain text, no lists or markdown; it is read aloud on smart glasses. suggestions: only the dishes your answer itself suggests (up to 3 short dish names the cook could ask a recipe for, e.g. 'Egg fried rice'); for a question that isn't asking for dishes, an empty list.",
+  "Earlier turns of the conversation, if any, come before what the cook says now: use them for follow-ups ('the second one' means the second dish Cooking Buddy suggested).",
 ].join("\n");
 
 /** The request isn't about food ("write me a poem", "asdfgh"); answered with 422, no fallback. */
