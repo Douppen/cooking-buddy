@@ -10,3 +10,4 @@ server/smoke.js
 server/ask-check.js
 *.md
 .DS_Store
+server/*.test.js

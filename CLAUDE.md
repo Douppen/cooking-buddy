@@ -74,7 +74,8 @@ Build everything so that port is cheap:
 ```
 app/      Glasses web app: React + Vite + @wearables-ui-toolkit/mrbd. Built to static files.
 server/   Node server: serves app/dist, health at /up, API under /api (zod for validation).
-          ask.js = /api/ask, models/ = recipe schemas, recipes/ = recipe JSON files.
+          ask.js = /api/ask + /api/status, recipes.js = /api/recipes, models/ = schemas,
+          recipes/ = recipe JSON files, engine.js / session.js = recipe logic (server/README.MD).
 config/   Kamal deploy config.   .kamal/secrets reads secrets from the environment.
 .github/  Deploy workflow and the pinned SSH host key of the server.
 ```
@@ -86,9 +87,16 @@ cd server && npm install && npm start   # :8787, serves app/dist if built
 cd app && npm run dev           # :5173, proxies /api to :8787
 cd app && npm run build         # typecheck + production build
 cd server && npm run smoke      # smoke test; add -- https://cook.simonnars.com for prod
+cd server && npm test           # unit tests: engine, session, recipes, request validation
 cd server && npm run ask        # real questions through /api/ask (calls Gemini, costs ~nothing)
                                 #   add -- https://cook.simonnars.com, or --image photo.jpg
 ```
+
+Testing the AI in a browser (also in production): open `/test.html`
+(https://cook.simonnars.com/test.html). It's a plain dev page, not glasses UI: pick a recipe,
+step and servings, ask a question, optionally add a phone photo, and see the answer and
+timings. `GET /api/status` shows whether Gemini is configured and reachable without
+spending anything.
 
 To run `/api/ask` locally: `GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json npm start`.
 

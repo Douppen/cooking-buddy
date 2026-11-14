@@ -1,15 +1,19 @@
 // Cooking Buddy server: serves the built glasses web app. The app's "brains" (recipes,
 // AI answers at /api/ask) belong here too, so a future native app can reuse them.
 //
-//   GET  /up        health check (Kamal + Docker)
-//   POST /api/ask   answer a question about the current recipe step (see ask.js)
-//   GET  /*         static files from PUBLIC_DIR, SPA fallback to index.html
+//   GET  /up                  health check (Kamal + Docker)
+//   POST /api/ask             answer a question about the current recipe step (see ask.js)
+//   GET  /api/recipes[/:id]   recipe list / one recipe (see recipes.js)
+//   GET  /api/status          AI configuration and last Gemini warm-up (costs nothing)
+//   GET  /*                   static files from PUBLIC_DIR, SPA fallback to index.html
+//                             (/test.html is a browser page for trying /api/ask)
 
 import { createReadStream, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { handleAsk, sendJson, warmUpAi } from "./ask.js";
+import { aiStatus, handleAsk, sendJson, warmUpAi } from "./ask.js";
+import { getRecipe, listRecipes } from "./recipes.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const PUBLIC_DIR = resolve(
@@ -46,7 +50,27 @@ const http = createServer((req, res) => {
     return;
   }
   if (path === "/api" || path.startsWith("/api/")) {
-    sendJson(res, 404, { error: "No such API route" });
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      sendJson(res, path.startsWith("/api/recipes") || path === "/api/status" ? 405 : 404, {
+        error: "No such API route",
+      });
+      return;
+    }
+    if (path === "/api/status") {
+      sendJson(res, 200, { ok: true, ai: aiStatus(), recipes: listRecipes().length });
+      return;
+    }
+    if (path === "/api/recipes") {
+      sendJson(res, 200, listRecipes());
+      return;
+    }
+    const recipeId = path.match(/^\/api\/recipes\/([a-z0-9-]+)$/)?.[1];
+    const recipe = recipeId && getRecipe(recipeId);
+    if (recipe) {
+      sendJson(res, 200, recipe);
+      return;
+    }
+    sendJson(res, 404, { error: recipeId ? "No such recipe" : "No such API route" });
     return;
   }
   serveStatic(req, res);

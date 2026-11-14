@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Ask Test</title>
+  <!-- Dev page for trying /api/ask from a laptop or phone (not the glasses UI). -->
+  <style>
+    :root {
+      --bg: #f6f5f2; --panel: #ffffff; --text: #1d1c1a; --muted: #6b6862; --line: #dedbd4;
+      --accent: #c2570c; --accent-text: #ffffff; --ok: #2f7d32; --bad: #b3261e;
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161514; --panel: #201f1d; --text: #ecebe8; --muted: #a29e97; --line: #3a3835;
+        --accent: #f08a3c; --accent-text: #1a0f05; --ok: #7cc47f; --bad: #f2867d;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, sans-serif; }
+    main { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .muted { color: var(--muted); font-size: 0.9rem; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
+    label { display: block; font-weight: 600; font-size: 0.9rem; margin: 12px 0 4px; }
+    label:first-child { margin-top: 0; }
+    select, input[type=number], textarea {
+      width: 100%; font: inherit; color: var(--text); background: var(--bg);
+      border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 120px; gap: 12px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    button {
+      font: inherit; border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
+      color: var(--text); padding: 6px 12px; cursor: pointer;
+    }
+    button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; padding: 10px 18px; }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .photo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .photo img { max-width: 96px; max-height: 96px; border-radius: 8px; border: 1px solid var(--line); }
+    .actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    .status-ok { color: var(--ok); } .status-bad { color: var(--bad); }
+    .answer { font-size: 1.15rem; margin: 0 0 6px; }
+    .entry { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+    .entry:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+    .error { color: var(--bad); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Cooking Buddy: ask test</h1>
+  <div class="muted" id="status">Checking the AI…</div>
+
+  <div class="panel">
+    <div class="row">
+      <div>
+        <label for="recipe">Recipe</label>
+        <select id="recipe"></select>
+      </div>
+      <div>
+        <label for="servings">Servings</label>
+        <input id="servings" type="number" min="1" max="100" />
+      </div>
+    </div>
+    <label for="step">Current step</label>
+    <select id="step"></select>
+
+    <label for="question">Question</label>
+    <textarea id="question" placeholder="How much butter?"></textarea>
+    <div class="chips" id="presets"></div>
+
+    <label for="photo">Photo (optional)</label>
+    <div class="photo">
+      <input id="photo" type="file" accept="image/*" capture="environment" />
+      <img id="preview" alt="" hidden />
+      <button type="button" id="clear-photo" hidden>Remove photo</button>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="ask" type="button">Ask</button>
+      <label class="muted" style="margin:0;font-weight:400"><input type="checkbox" id="speak" /> Read answers aloud</label>
+    </div>
+  </div>
+
+  <div class="panel" id="answers" hidden></div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const presets = [
+    "How much butter?",
+    "What can I use instead of buttermilk?",
+    "Is it okay if the batter is lumpy?",
+    "Is this ready to flip?",
+  ];
+  let recipe = null;
+  let photo = null; // { mime_type, data }
+
+  async function loadStatus() {
+    try {
+      const s = await (await fetch("/api/status")).json();
+      const w = s.ai.last_warm_up;
+      const warm = w ? (w.ok ? `reached Gemini in ${w.ms} ms at ${new Date(w.at).toLocaleTimeString()}` : `last warm-up failed: ${w.error}`) : "not warmed up yet";
+      $("status").innerHTML = s.ai.configured
+        ? `<span class="${w && !w.ok ? "status-bad" : "status-ok"}">●</span> ${s.ai.model} in <b>${s.ai.location}</b>, ${warm}`
+        : `<span class="status-bad">●</span> The AI isn't configured on this server`;
+    } catch {
+      $("status").innerHTML = `<span class="status-bad">●</span> Couldn't reach /api/status`;
+    }
+  }
+
+  async function loadRecipes() {
+    const list = await (await fetch("/api/recipes")).json();
+    $("recipe").innerHTML = list.map((r) => `<option value="${r.recipe_id}">${r.title}</option>`).join("");
+    await selectRecipe(list[0]?.recipe_id);
+  }
+
+  async function selectRecipe(id) {
+    if (!id) return;
+    recipe = await (await fetch(`/api/recipes/${id}`)).json();
+    $("servings").value = recipe.base_servings;
+    $("step").innerHTML = recipe.steps
+      .map((s, i) => `<option value="${i}">${i + 1}. ${s.title}: ${s.instruction}</option>`)
+      .join("");
+  }
+
+  // Shrink photos to at most 1024 px on the long side before sending (about 100–200 KB).
+  async function shrink(file) {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.8));
+    const dataUrl = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+    return { mime_type: "image/jpeg", data: String(dataUrl).split(",")[1], url: dataUrl, kb: Math.round(blob.size / 1024) };
+  }
+
+  $("photo").addEventListener("change", async () => {
+    const file = $("photo").files[0];
+    if (!file) return;
+    const shrunk = await shrink(file);
+    photo = { mime_type: shrunk.mime_type, data: shrunk.data };
+    $("preview").src = shrunk.url;
+    $("preview").title = `${shrunk.kb} KB sent`;
+    $("preview").hidden = false;
+    $("clear-photo").hidden = false;
+  });
+
+  $("clear-photo").addEventListener("click", () => {
+    photo = null;
+    $("photo").value = "";
+    $("preview").hidden = true;
+    $("clear-photo").hidden = true;
+  });
+
+  $("recipe").addEventListener("change", (e) => selectRecipe(e.target.value));
+  $("presets").innerHTML = presets.map((q) => `<button type="button">${q}</button>`).join("");
+  $("presets").addEventListener("click", (e) => {
+    if (e.target.tagName === "BUTTON") $("question").value = e.target.textContent;
+  });
+  $("question").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); }
+  });
+  $("ask").addEventListener("click", ask);
+
+  function addEntry(html) {
+    const box = $("answers");
+    box.hidden = false;
+    const div = document.createElement("div");
+    div.className = "entry";
+    div.innerHTML = html;
+    box.prepend(div);
+  }
+
+  const escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+  async function ask() {
+    const question = $("question").value.trim();
+    if (!question || !recipe) return;
+    const body = {
+      recipe,
+      step_index: Number($("step").value),
+      question,
+      servings: Number($("servings").value) || undefined,
+      ...(photo ? { image: photo } : {}),
+    };
+    $("ask").disabled = true;
+    $("ask").textContent = "Asking…";
+    const started = performance.now();
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      const total = Math.round(performance.now() - started);
+      const context = `${escape(question)}${photo ? " (with photo)" : ""}, step ${body.step_index + 1}, ${body.servings} servings`;
+      if (!res.ok) {
+        const issues = data.issues ? `: ${data.issues.map((i) => `${i.path} ${i.message}`).join("; ")}` : "";
+        addEntry(`<p class="answer error">${res.status}: ${escape(data.error)}${escape(issues)}</p><div class="muted">${context}, ${total} ms</div>`);
+        return;
+      }
+      addEntry(`<p class="answer">${escape(data.answer)}</p><div class="muted">${context}<br>${total} ms total, ${data.ms} ms in ${escape(data.model)}</div>`);
+      if ($("speak").checked && "speechSynthesis" in window) {
+        speechSynthesis.cancel();
+        speechSynthesis.speak(new SpeechSynthesisUtterance(data.answer));
+      }
+    } catch (err) {
+      addEntry(`<p class="answer error">Request failed: ${escape(err.message)}</p>`);
+    } finally {
+      $("ask").disabled = false;
+      $("ask").textContent = "Ask";
+    }
+  }
+
+  loadStatus();
+  loadRecipes();
+</script>
+</body>
+</html>

@@ -47,8 +47,8 @@ export class RecipeSession {
 
     return {
       sessionId: this.id,
-      recipeName: this.recipe.recipe_name,
-      servings: Number((this.recipe.servings * this.scaleFactor).toFixed(2)),
+      recipeName: this.recipe.title,
+      servings: Number((this.recipe.base_servings * this.scaleFactor).toFixed(2)),
       scaleFactor: Number(this.scaleFactor.toFixed(2)),
       unitSystem: this.unitSystem,
       currentStepIndex: this.currentStepIndex,

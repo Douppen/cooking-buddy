@@ -184,6 +184,8 @@ function getClient() {
 // The first Gemini call has to fetch a Google access token and open a connection, which
 // made the first question take ~8 s instead of ~2 s. Warm both up at startup and every
 // 15 minutes with countTokens, which is free.
+let lastWarmUp = null; // { ok, ms, at, error? }
+
 export function warmUpAi() {
   const ai = getClient();
   if (!ai) return;
@@ -191,13 +193,23 @@ export function warmUpAi() {
     const started = performance.now();
     try {
       await ai.models.countTokens({ model: MODEL, contents: "warm up" });
-      console.log(`ask: ${MODEL} in ${LOCATION} warmed up in ${Math.round(performance.now() - started)} ms`);
+      const ms = Math.round(performance.now() - started);
+      lastWarmUp = { ok: true, ms, at: new Date().toISOString() };
+      console.log(`ask: ${MODEL} in ${LOCATION} warmed up in ${ms} ms`);
     } catch (err) {
+      const ms = Math.round(performance.now() - started);
+      lastWarmUp = { ok: false, ms, at: new Date().toISOString(), error: String(err?.message ?? err).slice(0, 300) };
       console.error("ask: warm-up failed:", err?.message ?? err);
     }
   };
   warm();
   setInterval(warm, 15 * 60_000).unref();
+}
+
+// For GET /api/status: is the AI configured, and did the last warm-up reach Gemini?
+// The warm-up uses countTokens, so checking this costs nothing.
+export function aiStatus() {
+  return { configured: getClient() !== null, model: MODEL, location: LOCATION, last_warm_up: lastWarmUp };
 }
 
 function loadCredentials() {

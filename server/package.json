@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node server.js",
     "smoke": "node smoke.js",
-    "ask": "node ask-check.js"
+    "ask": "node ask-check.js",
+    "test": "node --test"
   },
   "dependencies": {
     "@google/genai": "^3.3.0",

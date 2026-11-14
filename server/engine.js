@@ -52,37 +52,10 @@ export class RecipeEngine {
    * Formats an ingredient based on the active scale and unit system.
    */
   formatIngredient(ing) {
-    const scaledQty = ing.base_amount * this.scaleFactor;
-
-    if (this.unitSystem === "metric") {
-      const rounded = Number.isInteger(scaledQty)
-        ? scaledQty
-        : Number(scaledQty.toFixed(1));
-      return `${rounded} ${ing.base_unit} ${ing.name}`;
-    }
-
-    // Imperial conversion
-    if (ing.base_unit === "g") {
-      const oz = scaledQty * 0.035274;
-      if (oz >= 16) {
-        return `${Number((oz / 16).toFixed(2))} lbs ${ing.name}`;
-      }
-      return `${Number(oz.toFixed(1))} oz ${ing.name}`;
-    }
-
-    if (ing.base_unit === "ml") {
-      const flOz = scaledQty * 0.033814;
-      if (flOz >= 8) {
-        return `${Number((flOz / 8).toFixed(2))} cups ${ing.name}`;
-      }
-      return `${Number(flOz.toFixed(1))} fl oz ${ing.name}`;
-    }
-
-    // Discrete count items (e.g., eggs, cloves)
-    const rounded = Number.isInteger(scaledQty)
-      ? scaledQty
-      : Number(scaledQty.toFixed(1));
-    return `${rounded} ${ing.name}`;
+    return convertUnitSystem(
+      scaleIngredients([ing], this.scaleFactor),
+      this.unitSystem,
+    )[0].display;
   }
 
   /**
@@ -106,4 +79,50 @@ export class RecipeEngine {
   }
 }
 
-export { RecipeEngine };
+// --- Pure helpers (also used by session.js) ---------------------------------------------
+
+/**
+ * Scales each ingredient's base_amount by `factor`, adding an `amount` field.
+ * @param {Array<{base_amount: number}>} ingredients
+ * @param {number} factor
+ */
+export function scaleIngredients(ingredients, factor) {
+  return ingredients.map((ing) => ({ ...ing, amount: ing.base_amount * factor }));
+}
+
+/**
+ * Converts scaled ingredients (from scaleIngredients) to display amounts in the chosen
+ * unit system, with practical cooking rounding.
+ * @param {Array<{id: string, name: string, amount: number, base_unit: 'g'|'ml'|'unit'}>} scaled
+ * @param {'metric'|'imperial'} unitSystem
+ * @returns {Array<{id: string, name: string, amount: number, unit: string, display: string}>}
+ */
+export function convertUnitSystem(scaled, unitSystem) {
+  return scaled.map((ing) => {
+    const { amount, unit } = toUnitSystem(ing.amount, ing.base_unit, unitSystem);
+    const display =
+      unit === "unit" ? `${amount} ${ing.name}` : `${amount} ${unit} ${ing.name}`;
+    return { id: ing.id, name: ing.name, amount, unit, display };
+  });
+}
+
+function toUnitSystem(qty, baseUnit, unitSystem) {
+  if (unitSystem === "imperial" && baseUnit === "g") {
+    const oz = qty * 0.035274;
+    return oz >= 16
+      ? { amount: round(oz / 16, 2), unit: "lbs" }
+      : { amount: round(oz, 1), unit: "oz" };
+  }
+  if (unitSystem === "imperial" && baseUnit === "ml") {
+    const flOz = qty * 0.033814;
+    return flOz >= 8
+      ? { amount: round(flOz / 8, 2), unit: "cups" }
+      : { amount: round(flOz, 1), unit: "fl oz" };
+  }
+  // Metric, or a discrete count (eggs, cloves) in either system.
+  return { amount: round(qty, 1), unit: baseUnit };
+}
+
+function round(n, digits) {
+  return Number.isInteger(n) ? n : Number(n.toFixed(digits));
+}
