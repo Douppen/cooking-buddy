@@ -105,3 +105,5 @@ export class RecipeEngine {
     return HudSyncMessageSchema.parse(rawState);
   }
 }
+
+export { RecipeEngine };
