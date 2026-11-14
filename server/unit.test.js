@@ -404,7 +404,7 @@ test("each recipe's cuisine picks its cook; home and other cuisines keep the Bri
   assert.equal(personaFor("chinese"), "chinese");
   assert.equal(personaFor("other", "Spaghetti Carbonara"), "chef"); // the cuisine wins over the title
   assert.equal(personaFor(undefined), "chef"); // home sends no cuisine
-  // Older recipes without a cuisine: an Italian title still gets Tony; shared ingredients don't count.
+  // Older recipes without a cuisine: an Italian title still gets Giuseppe; shared ingredients don't count.
   assert.equal(personaFor(null, "Spaghetti Carbonara"), "italian");
   assert.equal(personaFor(null, "Caesar Salad with parmesan"), "chef");
   assert.equal(

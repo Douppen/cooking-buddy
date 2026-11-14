@@ -20,7 +20,7 @@ import {
   stepText,
 } from './cookingState';
 import {AskField, SEND_HINT} from './AskField';
-import {speak, stopSpeaking, voiceOf} from './speech';
+import {playHandover, speak, stopSpeaking, voiceOf} from './speech';
 import {TimerDock} from './TimerDock';
 import {CHIME_MS, playChime, unlockChime} from './chime';
 import {TIMER_DONE_VISIBLE_MS, applyTimerCommand, markDone, timerDoneSpeech, type Timer} from './timers';
@@ -33,13 +33,10 @@ export function Cooking({
   recipe,
   unitSystem,
   onRecipeChange,
-  greeting,
 }: {
   recipe: Recipe;
   unitSystem: UnitSystem;
   onRecipeChange: (recipe: Recipe) => void;
-  /** Said by the British chef when the recipe opens from home: the handover to its cook. */
-  greeting?: string;
 }) {
   const [state, dispatch] = useReducer(cookingReducer, initialCookingState);
   // Amounts are stored for the recipe's own servings; the cook's choice scales them.
@@ -67,7 +64,7 @@ export function Cooking({
             () => {
               setTimers(all => markDone(all, timer.id));
               playChime();
-              setTimeout(() => void speak(timerDoneSpeech(timer), voiceOf(recipe)), CHIME_MS);
+              setTimeout(() => void speak(timerDoneSpeech(timer), voiceOf(recipe), 'cooking'), CHIME_MS);
             },
             Math.max(0, timer.endsAt - Date.now()),
           ),
@@ -94,13 +91,10 @@ export function Cooking({
     return () => clearTimeout(timer);
   }, [state.mode]);
 
-  // Fresh from home: the chef hands over to this recipe's cook (its audio is already loaded).
-  // From then on, every answer, change and timer here is in the cook's voice (voiceOf()).
-  useEffect(() => {
-    if (greeting) void speak(greeting);
-    // Only when the screen opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Fresh from home: the chef hands over to this recipe's cook, the moment this screen opens
+  // (queued by home, audio already loaded). From then on, every answer, change and timer here
+  // is in the cook's voice (voiceOf()).
+  useEffect(() => playHandover(), []);
 
   // Stop any request and speech when the app is hidden or the screen closes.
   useEffect(() => {
@@ -114,7 +108,10 @@ export function Cooking({
     return () => {
       document.removeEventListener('visibilitychange', onHide);
       pending.current?.abort();
-      stopSpeaking();
+      // Only this screen's own speech: the screen can remount while it stays open (page
+      // transitions), and that must not cut off the handover. Leaving it (Back) does.
+      stopSpeaking('cooking');
+      if (!window.location.pathname.startsWith(`/cook/${recipe.recipe_id}`)) stopSpeaking('handover');
     };
   }, []);
 
@@ -136,7 +133,7 @@ export function Cooking({
         // The answer (and a changed recipe) shows when its voice starts, not before it; a timer
         // above starts at once. A change (new ingredients and steps, or new servings) only
         // says "Recipe updated".
-        return speak(changed ? 'Recipe updated.' : answer, voiceOf(recipe)).then(() => {
+        return speak(changed ? 'Recipe updated.' : answer, voiceOf(recipe), 'cooking').then(() => {
           if (controller.signal.aborted) return;
           if (changed) onRecipeChange(changed);
           // A timer needs no text: its line under the lists is the confirmation (the voice
@@ -150,7 +147,7 @@ export function Cooking({
         console.error('Asking failed:', err);
         const message = "Couldn't get an answer. Ask again.";
         // Read aloud like an answer, shown when the voice starts.
-        return speak(message, voiceOf(recipe)).then(() => {
+        return speak(message, voiceOf(recipe), 'cooking').then(() => {
           if (!controller.signal.aborted) dispatch({type: 'failed', message});
         });
       })

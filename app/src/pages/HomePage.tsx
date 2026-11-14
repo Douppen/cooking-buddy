@@ -15,7 +15,7 @@ import {useNavigate} from 'react-router-dom';
 import {ServerMessageError, askHome, findRecipe, type Turn} from '../api';
 import {useRecipes} from '../RecipesContext';
 import {AskField, SEND_HINT} from '../AskField';
-import {prefetchSpeech, speak, stopSpeaking} from '../speech';
+import {prefetchSpeech, queueHandover, speak, stopSpeaking} from '../speech';
 
 type Status =
   | {kind: 'idle'}
@@ -75,10 +75,12 @@ export function HomePage() {
   const latest = recipes[0];
   const imperial = unitSystem === 'imperial';
 
+  // Home closes late (it stays while the cooking screen slides in): stop only home's own
+  // speech, never the chef's handover that the cooking screen has just started.
   useEffect(
     () => () => {
       pending.current?.abort();
-      stopSpeaking();
+      stopSpeaking('home');
     },
     [],
   );
@@ -125,7 +127,7 @@ export function HomePage() {
           );
           // "Thinking…" stays until the voice starts, then the answer shows with it. Home
           // always talks with the British chef.
-          return speak(reply.answer).then(() => {
+          return speak(reply.answer, {}, 'home').then(() => {
             if (signal.aborted) return;
             setStatus({kind: 'answered', answer: reply.answer, suggestions: reply.suggestions});
           });
@@ -145,7 +147,9 @@ export function HomePage() {
           setHistory([]);
           setStatus({kind: 'idle'});
           // Push, so Back from cooking returns here, with this recipe on top.
-          navigate(`/cook/${recipe.recipe_id}`, {state: {greeting: reply.handover}});
+          // The cooking screen plays the chef's handover the moment it opens.
+          queueHandover(reply.handover);
+          navigate(`/cook/${recipe.recipe_id}`);
         });
       })
       .catch(err => {
@@ -154,7 +158,7 @@ export function HomePage() {
         // The server's own words when it gave some ("Let's keep it to food…"), read aloud like
         // an answer and shown when the voice starts.
         const message = err instanceof ServerMessageError ? err.message : FAILED_MESSAGE;
-        return speak(message).then(() => {
+        return speak(message, {}, 'home').then(() => {
           if (!signal.aborted) setStatus({kind: 'failed', message});
         });
       });

@@ -7,6 +7,11 @@
 // in the EU), played with an <audio> element. When that fails or takes too long, the device's own
 // voice (speechSynthesis, which plays on Ray-Ban Display) reads it instead. A newer speak()
 // or stopSpeaking() cancels whatever is fetching or playing.
+//
+// Each speech has an owner: the screen that said it ('home', 'cooking'), or 'handover' for
+// the chef's line when a recipe opens. A screen that closes stops only its own speech:
+// screens close late (home stays mounted ~0.5 s while the cooking screen slides in, and its
+// cleanup used to cut the handover off 0.4 s in), so their cleanups pass their owner.
 
 // The chef voice takes ~1.5-2 s; the server falls back to a plain voice itself when Gemini is
 // slow, so this only catches a server that doesn't answer at all.
@@ -23,6 +28,8 @@ let voiceOn = true;
 // Off for the rest of the visit once the server says it has no voice (503).
 let serverVoice = true;
 let current = 0; // id of the latest speak(); older ones stop when it changes
+let owner: SpeechOwner | null = null; // who said what's fetching or playing now
+let queuedHandover: string | null = null;
 let fetching: AbortController | null = null;
 let playing: {audio: HTMLAudioElement; url: string} | null = null;
 const cache = new Map<string, Blob>();
@@ -53,9 +60,10 @@ export function voiceOf(recipe: {cuisine?: string | null; title: string}): Voice
  * playing, when the device's voice takes over, at once when voice is off, or after
  * WAIT_FOR_VOICE_MS at the latest (the audio then still plays when it arrives). Never rejects.
  */
-export function speak(text: string, voice: Voice = {}): Promise<void> {
+export function speak(text: string, voice: Voice = {}, by: SpeechOwner | null = null): Promise<void> {
   if (!voiceOn || !text.trim()) return Promise.resolve();
   stopSpeaking();
+  owner = by;
   const id = current;
   return new Promise<void>(resolve => {
     const timer = setTimeout(resolve, WAIT_FOR_VOICE_MS);
@@ -92,6 +100,23 @@ export function speak(text: string, voice: Voice = {}): Promise<void> {
 }
 
 /**
+ * The chef's handover for the recipe about to open ("…let me hand you over to my expert
+ * colleague, Pankaj"): home queues it right before switching to the cooking screen, and the
+ * cooking screen plays it as soon as it opens (playHandover()), owned by 'handover' so no
+ * screen's cleanup cuts it off. Its audio is preloaded (prefetchSpeech()), so it starts at once.
+ */
+export function queueHandover(text: string | null): void {
+  queuedHandover = text;
+}
+
+/** Plays the queued handover, once (a remounted cooking screen doesn't repeat it). */
+export function playHandover(): void {
+  const text = queuedHandover;
+  queuedHandover = null;
+  if (text) void speak(text, {}, 'handover');
+}
+
+/**
  * Fetches the audio for `text` now, to play later with speak(text, voice) at once: the
  * chef's handover is made while the recipe is still being found. Not cancelled by
  * stopSpeaking().
@@ -110,7 +135,16 @@ export function prefetchSpeech(text: string, voice: Voice = {}): void {
   preloading.set(key, loading);
 }
 
-export function stopSpeaking(): void {
+/** Who said it: see the top of this file. */
+export type SpeechOwner = 'home' | 'cooking' | 'handover';
+
+/**
+ * Stops what's fetching or playing. With an owner, only when that owner said it: a screen's
+ * cleanup doesn't stop what another screen (or the handover) started.
+ */
+export function stopSpeaking(by?: SpeechOwner): void {
+  if (by && by !== owner) return;
+  owner = null;
   current += 1;
   fetching?.abort();
   fetching = null;

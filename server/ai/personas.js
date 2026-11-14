@@ -36,11 +36,11 @@ export const PERSONAS = {
     fallback: "en-US-Chirp3-HD-Umbriel",
   },
   italian: {
-    name: "Tony",
-    voice: "Algenib",
+    name: "Giuseppe",
+    voice: "Orus",
     style:
-      "Tony, a big, heavy-set New York Italian-American wise guy from Brooklyn, like a mob boss in a 1970s gangster movie. A very thick, heavy Brooklyn Italian-American accent on every single word: dropped r's, long nasal vowels, 'fuhgeddaboudit', 'gabagool'. A deep, gravelly, chesty voice, slow and theatrical, warm but a little menacing in a funny way.",
-    fallback: "en-US-Chirp3-HD-Algenib",
+      "Giuseppe, a passionate chef from Naples who learned to cook in his nonna's kitchen, speaking English with a very heavy, thick Italian accent on every single word: rolled r's, open Italian vowels, an extra 'a' sound at the end of words, the sing-song rhythm and expressive ups and downs of Italian speech. Warm, proud and full of feeling, like he is talking with his hands.",
+    fallback: "en-US-Chirp3-HD-Orus",
   },
   mexican: {
     name: "Abuela Rosa",
@@ -52,8 +52,9 @@ export const PERSONAS = {
   french: {
     name: "Chef Jacques",
     voice: "Schedar",
+    languageCode: "fr-FR",
     style:
-      "Chef Jacques, a Parisian chef, speaking English with a strong, thick French accent on every word. Refined, dramatic and a little snooty, very passionate about butter.",
+      "Chef Jacques, a Parisian chef who has always lived in Paris, speaking English with a very heavy French accent: French vowels, French r from the throat, stress on the last syllable, 'h' dropped. Refined, dramatic and a little snooty, very passionate about butter.",
     fallback: "en-US-Chirp3-HD-Schedar",
   },
   japanese: {
@@ -77,7 +78,7 @@ for (const cuisine of CUISINES) {
   if (cuisine !== "other" && !PERSONAS[cuisine]) throw new Error(`no persona for cuisine ${cuisine}`);
 }
 
-// Recipes saved before cuisines existed: Italian dishes in the title still get Tony. Only
+// Recipes saved before cuisines existed: Italian dishes in the title still get Giuseppe. Only
 // clearly Italian words, not ingredients used everywhere (parmesan, basil, olive oil).
 const ITALIAN = new RegExp(
   "\\b(" +
@@ -96,7 +97,7 @@ const ITALIAN = new RegExp(
 
 /**
  * Who reads an answer: the recipe's cuisine's cook, else (older recipes without a cuisine)
- * Tony when `context` (the recipe title) is clearly Italian, else the British chef. Home
+ * Giuseppe when `context` (the recipe title) is clearly Italian, else the British chef. Home
  * sends neither, so home is always the chef.
  * @returns {keyof typeof PERSONAS}
  */

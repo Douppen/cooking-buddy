@@ -3,11 +3,11 @@
 // Request (JSON):  { text: "Add the cream now.", cuisine?: "indian", context?: "Butter Chicken" }
 //   text: what to say (up to 600 characters). cuisine: the recipe's cuisine (recipe.cuisine,
 //   from /api/home), whose cook reads it (ai/personas.js: "indian" is Pankaj). context: the
-//   recipe title, for older recipes without a cuisine (Italian titles get Tony). Neither (as
+//   recipe title, for older recipes without a cuisine (Italian titles get Giuseppe). Neither (as
 //   on home): the British chef.
 // Response:        200 audio/mpeg (MP3); headers x-persona: "chef" | "indian" | ..., and
-//                  x-voice: "gemini" (the character) or "fallback" (a plain voice, when
-//                  Gemini failed). 503 { error } when speech isn't configured, 502 { error }
+//                  x-voice: "character" (the cook's own voice) or "fallback" (a plain
+//                  voice, when the character voice failed). 503 { error } when speech isn't configured, 502 { error }
 //                  when Google fails.
 //
 // The app fetches this as soon as it has an answer and shows the answer when its voice
@@ -54,7 +54,7 @@ export async function handleSpeak(req, res) {
         "content-type": "audio/mpeg",
         "content-length": audio.length,
         "cache-control": "no-store",
-        // "gemini" (the chef) or "fallback" (the plain voice, when Gemini failed)
+        // "character" (the cook's own voice) or "fallback" (a plain voice, when that failed)
         "x-voice": voice,
         "x-persona": persona,
       })

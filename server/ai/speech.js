@@ -7,7 +7,7 @@
 // encodes it to MP3: ~25-35 KB instead of ~0.3 MB.
 //
 // Who speaks: the British chef on home, and per recipe its cuisine's cook (ai/personas.js:
-// Pankaj, Uncle Wei, Tony, Abuela Rosa, Chef Jacques, Kenji, Auntie Mali).
+// Pankaj, Uncle Wei, Giuseppe, Abuela Rosa, Chef Jacques, Kenji, Auntie Mali).
 //
 // If Gemini fails or is slow, Google Cloud Text-to-Speech reads it with the persona's plain
 // Chirp 3 HD voice (eu-texttospeech.googleapis.com, about 1 s; the project needs the Cloud
@@ -16,7 +16,7 @@
 
 import { Mp3Encoder } from "@breezystack/lamejs";
 import { GoogleAuth } from "google-auth-library";
-import { LOCATION, loadCredentials } from "./gemini.js";
+import { LOCATION, MODEL, getClient, loadCredentials } from "./gemini.js";
 import { PERSONAS } from "./personas.js";
 
 export const TTS_MODEL = process.env.TTS_MODEL ?? "gemini-3.8-flash-lite-tts";
@@ -25,6 +25,8 @@ const TTS_FALLBACK_HOST = process.env.TTS_FALLBACK_HOST ?? "eu-texttospeech.goog
 
 const GEMINI_TIMEOUT_MS = 6_000;
 const FALLBACK_TIMEOUT_MS = 3_000;
+const CHIRP_TIMEOUT_MS = 4_000;
+const REWRITE_TIMEOUT_MS = 3_000;
 const SAMPLE_RATE = 24_000; // Gemini's speech output: 16-bit mono PCM at 24 kHz
 // 40, not lower: at 32 kbps lamejs resamples to 22.05 kHz, and its resampler turns speech
 // into silence (a plain test tone survives it, so test with real speech). 40 keeps 24 kHz.
@@ -56,32 +58,36 @@ export function speechConfigured() {
 }
 
 /**
- * MP3 audio of `text` read aloud by `persona` (a key of PERSONAS): its Gemini voice, or its
- * plain voice if that fails. Returns { audio: Buffer, voice: "gemini" | "fallback" }.
+ * MP3 audio of `text` read aloud by `persona` (a key of PERSONAS): its character voice, or
+ * its plain voice if that fails. The character voice may first respell the text the way the
+ * cook pronounces it (cook.rewrite: katakana for Kenji), then reads it with Gemini (voice,
+ * style, languageCode) or a native-language Chirp 3 HD voice (cook.chirp). The plain voice
+ * reads the original text. Returns { audio: Buffer, voice: "character" | "fallback" }.
  * Throws when both fail.
  */
 export async function synthesize(text, persona = "chef") {
-  const { voice, style, fallback } = PERSONAS[persona] ?? PERSONAS.chef;
+  const cook = PERSONAS[persona] ?? PERSONAS.chef;
   const started = performance.now();
   const at = new Date().toISOString();
   const done = (entry) => {
     lastSpeech = { ...entry, persona, ms: Math.round(performance.now() - started), at, chars: text.length };
   };
-  let geminiError;
+  let characterError;
   try {
-    const audio = await geminiSpeech(text, voice, style);
-    done({ ok: true, voice: "gemini" });
-    return { audio, voice: "gemini" };
+    const said = cook.rewrite ? await rewriteForAccent(text, cook.rewrite) : text;
+    const audio = cook.chirp ? await chirpSpeech(said, cook.chirp, CHIRP_TIMEOUT_MS) : await geminiSpeech(said, cook);
+    done({ ok: true, voice: "character" });
+    return { audio, voice: "character" };
   } catch (err) {
-    geminiError = reasonOf(err);
-    console.error("speech: Gemini voice failed, using the plain voice:", geminiError);
+    characterError = reasonOf(err);
+    console.error(`speech: ${persona}'s voice failed, using the plain voice:`, characterError);
   }
   try {
-    const audio = await plainSpeech(text, fallback);
-    done({ ok: true, voice: "fallback", error: `gemini: ${geminiError}`.slice(0, 300) });
+    const audio = await chirpSpeech(text, { voice: cook.fallback }, FALLBACK_TIMEOUT_MS);
+    done({ ok: true, voice: "fallback", error: `character: ${characterError}`.slice(0, 300) });
     return { audio, voice: "fallback" };
   } catch (err) {
-    const reason = `gemini: ${geminiError} | fallback: ${reasonOf(err)}`;
+    const reason = `character: ${characterError} | fallback: ${reasonOf(err)}`;
     done({ ok: false, voice: null, error: reason.slice(0, 300) });
     throw new Error(reason);
   }
@@ -89,7 +95,7 @@ export async function synthesize(text, persona = "chef") {
 
 // Streams the audio (server-sent events of raw PCM chunks) and collects it: measured ~0.4 s
 // faster in total than one generateContent call (1.5 s vs 1.9 s for a 30-word answer).
-async function geminiSpeech(text, voice, style) {
+async function geminiSpeech(text, { voice, style, languageCode }) {
   const client = await getAuth().getClient();
   const { token } = await client.getAccessToken();
   const { project_id } = loadCredentials();
@@ -100,7 +106,12 @@ async function geminiSpeech(text, voice, style) {
     body: JSON.stringify({
       // The style goes beside the text, not in it: the model reads the text word for word.
       contents: [{ role: "user", parts: [{ text, speechMetadata: { style } }] }],
-      generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { voice } } },
+      // languageCode ("fr-FR", "ru-RU") makes the accent: a style alone gave Chef Jacques a
+      // mild accent; with fr-FR an AI rater heard "unmistakably French".
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: { voiceConfig: { voice }, ...(languageCode ? { languageCode } : {}) },
+      },
     }),
     signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
   });
@@ -136,7 +147,10 @@ async function geminiSpeech(text, voice, style) {
   return toMp3(pcmOf(Buffer.concat(chunks), mimeType));
 }
 
-async function plainSpeech(text, fallbackVoice) {
+// A Chirp 3 HD voice from Cloud Text-to-Speech, MP3 straight away: the cooks' plain
+// fallback voices, and the native-language voices some cooks speak with (a Japanese voice
+// reading katakana English sounds Japanese; reading English, it sounds British).
+async function chirpSpeech(text, { voice, languageCode, speakingRate }, timeout) {
   const client = await getAuth().getClient();
   const { project_id } = loadCredentials();
   const response = await client.request({
@@ -145,14 +159,35 @@ async function plainSpeech(text, fallbackVoice) {
     headers: { "x-goog-user-project": project_id },
     data: {
       input: { text },
-      voice: { languageCode: fallbackVoice.split("-").slice(0, 2).join("-"), name: fallbackVoice },
-      audioConfig: { audioEncoding: "MP3" },
+      voice: { languageCode: languageCode ?? voice.split("-").slice(0, 2).join("-"), name: voice },
+      audioConfig: { audioEncoding: "MP3", ...(speakingRate ? { speakingRate } : {}) },
     },
-    timeout: FALLBACK_TIMEOUT_MS,
+    timeout,
   });
   const audio = Buffer.from(response.data?.audioContent ?? "", "base64");
   if (!audio.length) throw new Error("no audio in the Text-to-Speech response");
   return audio;
+}
+
+// The text the way the cook pronounces it (katakana for Kenji, a respelling for Uncle Wei):
+// one fast Gemini call in the EU, ~0.8 s. Describing an accent in the style wasn't enough for
+// these voices: an AI rater heard American or British English every time.
+async function rewriteForAccent(text, instruction) {
+  const ai = getClient();
+  if (!ai) throw new Error("no Gemini client for the respelling");
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: text,
+    config: {
+      systemInstruction: instruction,
+      thinkingConfig: { thinkingLevel: "LOW" },
+      maxOutputTokens: 1024,
+      abortSignal: AbortSignal.timeout(REWRITE_TIMEOUT_MS),
+    },
+  });
+  const said = response.text?.trim();
+  if (!said) throw new Error("empty respelling");
+  return said;
 }
 
 // Gemini answers with raw PCM ("audio/L16;codec=pcm;rate=24000") or, for some requests, a
