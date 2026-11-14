@@ -10,15 +10,33 @@ Live at https://cook.simonnars.com.
 
 Keep the glasses UI minimal. It's a glance at one line, not a phone screen on your face.
 
-- **One screen.** The HUD shows only the current step's instruction as one big line, plus a
-  small step counter ("3/6"). No header, ingredient list, panels or buttons.
-- **Swipe** (`next` / `prev`) moves between steps. **Pinch** (`select`) asks a question by
-  voice through the glasses' dictation.
+- **First, pick a recipe** (`/`): a "Recipes" list, one row per recipe. Recipes the AI wrote
+  for this cook come first, then the library (`GET /api/recipes`; an edited one says "Your
+  version"), then a last row, **"Cook something new"**. Pinch opens a row; the system Back
+  gesture returns to the list.
+- **Cook something new** (`/new`): the cook says a dish ("carbonara for 4") and the AI writes
+  a classic recipe (`POST /api/recipes/generate`, ~6–8 s), then cooking starts.
+- **Then cook** (`/cook/:id`). The HUD shows only the current step's instruction as one
+  line, plus a small step counter ("3/6"). No header, ingredient list, panels or buttons.
+- **Swipe** (`next` / `prev`) moves between steps. **Pinch** (`select`) on the ask field asks
+  by voice through the glasses' dictation.
 - **The answer briefly replaces the step** on the HUD and is read aloud, then the step comes
-  back. The answer knows the current step (`/api/ask`).
+  back. The answer knows the recipe and the current step (`/api/ask`).
+- **Saying "I don't have X" or "can I skip X" edits the recipe**: the AI makes the smallest
+  change, rewrites the affected steps, and the HUD says "RECIPE UPDATED" with what changed
+  (~6–8 s). The cook stays on the same step. "Do I need X?" answers, and marks X optional
+  when the dish works without it.
+- **Recipes the AI wrote or edited live on the device** (`localStorage`, see
+  `app/src/recipeStore.ts`), not on the server. Editing a library recipe makes a device-only
+  "Your version" under the same id; the server's recipe file never changes.
 
-Nice to have, only once that works: timers per step, scaling servings, choosing from a few
-recipes. Add them without breaking the one-line rule.
+Nice to have, only once that works: timers per step, scaling servings, a way to reset an
+edited recipe to the original. Add them without breaking the one-line rule.
+
+App code: `main.tsx` (router), `RecipesContext.tsx` (server and saved recipes, kept across
+screens), `recipeStore.ts` (device storage), `pages/` (one file per screen), `Cooking.tsx`
+(the cooking screen), `cookingState.ts` (step, ask and edit logic, free of React: the spec
+for the native port).
 
 ## The plan: web app now, native app later
 
@@ -35,7 +53,7 @@ Build everything so that port is cheap:
   answers live in `server/` behind plain JSON HTTP endpoints under `/api`. The native app
   will call the same endpoints. The web app only renders the current screen and sends user
   actions. `/api/ask` takes the recipe, the current step and the question, and returns a
-  short answer.
+  short answer (plus the whole updated recipe when it changed it).
 - **Design screens for the native display.** Native apps re-send the whole screen on
   every update over Bluetooth (no partial updates), at 600×600, built from text, images,
   buttons, lists and flex boxes. So: one step per screen, simple layouts, small images,
@@ -52,7 +70,7 @@ Build everything so that port is cheap:
   They have no native equivalent.
 - Record anything web-specific that a port must rethink under "Porting notes" below.
 
-## AI (`/api/ask`)
+## AI (`/api/ask`, `/api/recipes/generate`)
 
 - **Gemini on Google Cloud, EU only.** Model `gemini-4-hydrogen` (fallback:
   `gemini-3.8-flash`, set `GEMINI_MODEL`), location `eu` (the EU multi-region endpoint
@@ -67,12 +85,25 @@ Build everything so that port is cheap:
 - **Request:** `{ recipe, step_index, question, servings?, image? }`, where `recipe` matches
   `RecipeSchema` in `server/models/domain.js` and `image` is `{ mime_type, data }` with
   base64 data (JPEG/PNG/WebP; shrink photos to about 1 megapixel first). **Response:**
-  `{ answer, model, ms }`. Answers are 1–2 sentences, plain text, meant to be shown and
-  spoken.
-- Typical answer time is 1.5–2.5 s. The server warms up its Google token and connection
-  at startup and every 15 minutes, because a cold first call took about 8 s.
-- The endpoint is public and every call costs money, so it's limited to 30 requests per
-  minute per client IP (taken from Cloudflare's `cf-connecting-ip`).
+  `{ answer, model, ms }`, plus `{ recipe, change_summary }` when the cook's words changed
+  the recipe. Answers are 1–2 sentences, plain text, meant to be shown and spoken.
+- **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara for 4" }` returns
+  `{ recipe, model, ms }`: a classic recipe with `origin: "generated"` and a `gen-…` id. The
+  server doesn't store it; the device does and sends it to `/api/ask` like any recipe.
+- **Recipe format for the AI:** Gemini writes a "draft" (`RecipeDraftSchema`: no ids or step
+  indexes) as structured JSON (`server/ai/recipeFormat.js`), and `toRecipe()` in
+  `models/domain.js` turns it into a valid `Recipe`. Ingredients have `optional`; recipes
+  have `origin` (`library` / `generated`) and `edits` (short notes on AI changes). Don't put
+  `minItems`/`maxItems` in the Gemini schema: on both lists together Gemini rejects it as
+  INVALID_ARGUMENT; Zod enforces list lengths instead.
+- Typical times: a question 1.5–2.5 s, an edit 6–8.5 s (Gemini rewrites the whole recipe),
+  a new recipe 6–8 s. The server warms up its Google token and connection at startup and
+  every 15 minutes, because a cold first call took about 8 s. A backup request
+  (`withBackup` in `server/ai/gemini.js`) covers Gemini's occasional stalls: after 10 s for
+  `/api/ask`, 15 s for a new recipe.
+- The endpoints are public and every call costs money: `/api/ask` is limited to 30 requests
+  and `/api/recipes/generate` to 10 per minute per client IP (Cloudflare's
+  `cf-connecting-ip`).
 
 ## Layout
 

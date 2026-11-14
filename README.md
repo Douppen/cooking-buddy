@@ -3,10 +3,11 @@
 Hands-free recipe steps and answers on Meta Ray-Ban Display glasses, driven by the Neural
 Band. Live at **https://cook.simonnars.com**.
 
-"Glance + ask": the display shows only the current step as one line and a small step
-counter. Swipe to move between steps. Pinch the ask field and ask by voice ("how much
+"Glance + ask": pick a recipe from a short list, then the display shows only the current
+step as one line and a small step counter. Swipe to move between steps. Pinch the ask field and ask by voice ("how much
 butter?"): a short answer that knows the current step briefly replaces the step and is read
-aloud.
+aloud. Say "I don't have buttermilk" and the AI edits the recipe for you, or pick "Cook
+something new", name any dish, and the AI writes a classic recipe for it.
 
 ## Layout
 

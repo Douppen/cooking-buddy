@@ -1,0 +1,18 @@
+{
+  "recipe_id": "scrambled-eggs",
+  "title": "Scrambled Eggs",
+  "base_servings": 2,
+  "ingredients": [
+    { "id": "egg", "name": "Eggs", "base_amount": 4, "base_unit": "unit", "substitutes": [] },
+    { "id": "milk", "name": "Milk", "base_amount": 30, "base_unit": "ml", "substitutes": ["cream", "water"] },
+    { "id": "butter", "name": "Butter", "base_amount": 15, "base_unit": "g", "substitutes": ["olive oil"] },
+    { "id": "salt", "name": "Salt", "base_amount": 1, "base_unit": "g", "substitutes": [] },
+    { "id": "chives", "name": "Chives, chopped", "base_amount": 5, "base_unit": "g", "substitutes": ["spring onion greens"] }
+  ],
+  "steps": [
+    { "index": 0, "title": "Whisk", "instruction": "Whisk eggs, milk and salt until no streaks remain.", "visual_cues": ["even yellow mixture"], "timer_sec": null },
+    { "index": 1, "title": "Melt butter", "instruction": "Melt butter in a non-stick pan on low heat.", "visual_cues": ["foaming butter"], "timer_sec": 60 },
+    { "index": 2, "title": "Stir slowly", "instruction": "Add eggs and stir slowly until soft curds form.", "visual_cues": ["soft wet curds"], "timer_sec": 180 },
+    { "index": 3, "title": "Finish", "instruction": "Take off the heat while still glossy, then add chives.", "visual_cues": ["glossy curds", "green chives"], "timer_sec": null }
+  ]
+}

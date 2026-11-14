@@ -67,15 +67,20 @@ export function warmUpAi() {
 // call(signal); if that hasn't finished after BACKUP_AFTER_MS (or fails sooner), it starts
 // one backup call and returns whichever finishes first as { value, attempt }. That costs
 // extra only on the slow ~10% of calls. `call` must pass the signal on to Gemini.
+// Calls that write a whole recipe (edits, new recipes) take longer, so callers pass their
+// own timings: backupAfterMs should sit above that call's normal duration.
 const BACKUP_AFTER_MS = Number(process.env.AI_BACKUP_AFTER_MS ?? 3_500); // env override is for testing
 const ATTEMPT_TIMEOUT_MS = 10_000;
 
-export async function withBackup(call) {
+export async function withBackup(
+  call,
+  { backupAfterMs = BACKUP_AFTER_MS, attemptTimeoutMs = ATTEMPT_TIMEOUT_MS } = {},
+) {
   const controllers = [];
   const attempt = (n) => {
     const controller = new AbortController();
     controllers.push(controller);
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(ATTEMPT_TIMEOUT_MS)]);
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(attemptTimeoutMs)]);
     return call(signal).then((value) => ({ value, attempt: n }));
   };
   const first = attempt(1);
@@ -84,7 +89,7 @@ export async function withBackup(call) {
       clearTimeout(timer);
       if (controllers.length < 2) attempt(2).then(resolve, reject);
     };
-    const timer = setTimeout(startBackup, BACKUP_AFTER_MS);
+    const timer = setTimeout(startBackup, backupAfterMs);
     first.then(() => clearTimeout(timer), startBackup);
   });
   try {

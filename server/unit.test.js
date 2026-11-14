@@ -60,3 +60,45 @@ test("ask request validation", () => {
   assert.equal(AskRequestSchema.safeParse({ recipe, step_index: 99, question: "x" }).success, false);
   assert.equal(AskRequestSchema.safeParse({ recipe, step_index: 0, question: "  " }).success, false);
 });
+
+test("AI drafts become valid recipes", async () => {
+  const { toRecipe } = await import("./models/domain.js");
+  const { recipeToDraft, generatedRecipeId } = await import("./ai/recipeFormat.js");
+  // A library recipe survives a round trip through the AI's draft format unchanged.
+  const roundTrip = toRecipe(recipeToDraft(recipe), {
+    recipe_id: recipe.recipe_id,
+    origin: recipe.origin,
+    edits: recipe.edits,
+    previous: recipe,
+  });
+  assert.deepEqual(roundTrip, recipe);
+  // Duplicate names get unique ids, steps are numbered, defaults are filled in.
+  const id = generatedRecipeId("Spaghetti Carbonara!");
+  assert.match(id, /^gen-spaghetti-carbonara-[a-z0-9]+$/);
+  const made = toRecipe(
+    {
+      title: "Toast",
+      base_servings: 1,
+      ingredients: [
+        { name: "Bread", base_amount: 1, base_unit: "unit", substitutes: [], optional: false },
+        { name: "Bread", base_amount: 10, base_unit: "g", substitutes: [], optional: true },
+      ],
+      steps: [{ title: "Toast", instruction: "Toast the bread.", visual_cues: [], timer_sec: null }],
+    },
+    { recipe_id: id, origin: "generated", edits: [] },
+  );
+  assert.deepEqual(made.ingredients.map((i) => i.id), ["bread", "bread_2"]);
+  assert.equal(made.steps[0].index, 0);
+  assert.equal(made.origin, "generated");
+  assert.throws(() => toRecipe({ title: "Nothing", base_servings: 1, ingredients: [], steps: [] }, {
+    recipe_id: "x", origin: "generated", edits: [],
+  }));
+});
+
+test("generate request validation", async () => {
+  const { GenerateRequestSchema } = await import("./generate.js");
+  assert.ok(GenerateRequestSchema.safeParse({ request: "carbonara for 4" }).success);
+  assert.ok(GenerateRequestSchema.safeParse({ request: "lasagne", servings: 6 }).success);
+  assert.equal(GenerateRequestSchema.safeParse({ request: "   " }).success, false);
+  assert.equal(GenerateRequestSchema.safeParse({ request: "x", servings: 0 }).success, false);
+});

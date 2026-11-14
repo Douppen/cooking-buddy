@@ -1,76 +1,35 @@
 import {useEffect, useReducer, useRef, useState} from 'react';
-import {
-  App as WearablesApp,
-  InputTextView,
-  Page,
-  ScrollView,
-  TextColor,
-  TextStyle,
-  TextView,
-} from '@wearables-ui-toolkit/mrbd';
-import {askQuestion, loadFirstRecipe, type Recipe} from './api';
-import {
-  ANSWER_VISIBLE_MS,
-  cookingReducer,
-  hudText,
-  initialCookingState,
-} from './cooking';
+import {InputTextView, ScrollView, TextColor, TextStyle, TextView} from '@wearables-ui-toolkit/mrbd';
+import {askQuestion, type Recipe} from './api';
+import {ANSWER_VISIBLE_MS, cookingReducer, hudText, initialCookingState} from './cookingState';
 import {speak, stopSpeaking} from './speech';
 
-// "Glance + ask": one line on the HUD (the current step, or briefly an answer), a small
-// step counter, and one ask field. Swipe moves between steps; pinch on the field opens
-// the glasses' dictation, pinch again sends.
-export default function App() {
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [loadError, setLoadError] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    loadFirstRecipe(controller.signal)
-      .then(setRecipe)
-      .catch(err => {
-        if (!controller.signal.aborted) setLoadError(true);
-        console.error('Loading the recipe failed:', err);
-      });
-    return () => controller.abort();
-  }, []);
-
-  return (
-    <WearablesApp>
-      <Page enableSystemBarInset={false}>
-        {recipe ? (
-          <Cooking recipe={recipe} />
-        ) : (
-          <ScrollView ariaLabel="Cooking Buddy">
-            <div className="content-inset">
-              <TextView as="p" textStyle={TextStyle.BODY2_EMPHASIZED}>
-                {loadError ? "Can't reach the kitchen. Check the connection." : 'Getting the recipe…'}
-              </TextView>
-            </div>
-          </ScrollView>
-        )}
-      </Page>
-    </WearablesApp>
-  );
-}
-
-function Cooking({recipe}: {recipe: Recipe}) {
+// Cooking one recipe: the current step (or briefly an answer) and a field for questions
+// or changes ("I don't have eggs"). A change comes back as a new recipe for onRecipeChange.
+export function Cooking({recipe, onRecipeChange}: {recipe: Recipe; onRecipeChange: (recipe: Recipe) => void}) {
   const [state, dispatch] = useReducer(cookingReducer, recipe.steps.length, initialCookingState);
   const [question, setQuestion] = useState('');
+  const [busy, setBusy] = useState(false);
   const pending = useRef<AbortController | null>(null);
+  const stillAsking = useRef(false); // false once the cook swipes away from the question
 
   // Swipes arrive as ArrowLeft / ArrowRight from the Neural Band or touchpad.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
       event.preventDefault();
-      pending.current?.abort();
+      stillAsking.current = false;
       stopSpeaking();
       dispatch({type: event.key === 'ArrowRight' ? 'next' : 'prev'});
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
+
+  // An edit can change the number of steps.
+  useEffect(() => {
+    dispatch({type: 'recipeChanged', stepCount: recipe.steps.length});
+  }, [recipe.steps.length]);
 
   // An answer replaces the step for a while, then the step comes back.
   useEffect(() => {
@@ -79,7 +38,7 @@ function Cooking({recipe}: {recipe: Recipe}) {
     return () => clearTimeout(timer);
   }, [state.mode]);
 
-  // Stop any request and speech when the app is hidden or closed.
+  // Stop any request and speech when the app is hidden or the screen closes.
   useEffect(() => {
     const onHide = () => {
       if (document.visibilityState === 'hidden') {
@@ -96,29 +55,37 @@ function Cooking({recipe}: {recipe: Recipe}) {
 
   const send = (text: string) => {
     const asked = text.trim();
-    if (!asked || state.mode.kind === 'asking') return;
+    if (!asked || busy) return;
     setQuestion('');
-    pending.current?.abort();
+    setBusy(true);
     const controller = new AbortController();
     pending.current = controller;
+    stillAsking.current = true;
     dispatch({type: 'ask', question: asked});
     askQuestion(recipe, state.stepIndex, asked, controller.signal)
-      .then(answer => {
+      .then(({answer, recipe: changed}) => {
         if (controller.signal.aborted) return;
-        dispatch({type: 'answered', answer});
-        speak(answer);
+        if (changed) onRecipeChange(changed);
+        dispatch({type: 'answered', answer, changed: Boolean(changed)});
+        if (changed || stillAsking.current) speak(answer);
       })
       .catch(err => {
         if (controller.signal.aborted) return;
         console.error('Asking failed:', err);
         dispatch({type: 'failed', message: "Couldn't get an answer. Ask again."});
+      })
+      .finally(() => {
+        if (pending.current === controller) pending.current = null;
+        setBusy(false);
       });
   };
 
-  const {label, main} = hudText(state, recipe.steps[state.stepIndex].instruction);
+  // Until the recipeChanged effect runs, the step index can briefly exceed a shorter recipe.
+  const step = recipe.steps[Math.min(state.stepIndex, recipe.steps.length - 1)];
+  const {label, main} = hudText(state, step.instruction);
 
   return (
-    <div className="glance">
+    <div className="action-page-shell">
       <ScrollView ariaLabel={`${recipe.title}, step ${state.stepIndex + 1}`}>
         <div className="content-inset">
           <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
@@ -132,13 +99,13 @@ function Cooking({recipe}: {recipe: Recipe}) {
       <div className="ask-dock">
         <InputTextView
           text={question}
-          hint="Ask about this step"
+          hint="Ask, or say what you're missing"
           onTextChange={setQuestion}
           onSend={send}
           showActionButton={false}
-          showLoader={state.mode.kind === 'asking'}
+          showLoader={busy}
           loadingLabel="Thinking"
-          inputProps={{'aria-label': 'Ask about this step', maxLength: 500}}
+          inputProps={{'aria-label': 'Ask or change the recipe', maxLength: 500}}
         />
       </div>
     </div>

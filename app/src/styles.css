@@ -27,8 +27,8 @@ body {
   padding: var(--uit-spacing-large);
 }
 
-/* One screen: the step (or answer) fills the space, the ask field sits at the bottom. */
-.glance {
+/* Cooking screen: the step (or answer) fills the space, the ask field sits at the bottom. */
+.action-page-shell {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   block-size: 100%;

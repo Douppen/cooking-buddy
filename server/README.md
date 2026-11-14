@@ -27,7 +27,7 @@ npm run ask -- --image photo.jpg
 ```
 
 Without Google credentials the server still starts. Everything works except
-`POST /api/ask`, which answers 503.
+`POST /api/ask` and `POST /api/recipes/generate`, which answer 503.
 
 ### Environment
 
@@ -49,9 +49,11 @@ Without Google credentials the server still starts. Everything works except
 server/
 ├── ai/                # Everything that calls Gemini
 │   ├── gemini.js      # Shared client: credentials, EU location, warm-up, /api/status info
-│   └── answer.js      # /api/ask: system prompt, recipe as text, the Gemini call
+│   ├── answer.js      # /api/ask: answer, or edit the recipe when the cook asks
+│   ├── generate.js    # /api/recipes/generate: write a classic recipe for a named dish
+│   └── recipeFormat.js # Recipe JSON schema and writing rules shared by both
 ├── models/
-│   ├── domain.js      # Recipe, ingredient and step schemas (Zod)
+│   ├── domain.js      # Recipe, ingredient and step schemas (Zod), AI drafts, toRecipe()
 │   ├── protocol.js    # HUD sync / control message schemas (Zod), from the removed relay
 │   ├── vision.js      # Step classification result for camera frames (Zod, not used yet)
 │   └── index.js       # Barrel export for models
@@ -60,6 +62,7 @@ server/
 ├── session.js         # In-memory cooking session state machine + pub/sub (not wired up yet)
 ├── recipes.js         # Loads recipes/, GET /api/recipes and /api/recipes/:id
 ├── ask.js             # POST /api/ask: validation, rate limit, errors; calls ai/answer.js
+├── generate.js        # POST /api/recipes/generate: same, for ai/generate.js
 ├── http.js            # sendJson, readBody, clientIp, per-IP rate limiter
 ├── server.js          # HTTP server: routes, static app files, /up health check
 ├── unit.test.js       # npm test: engine, session, recipes and request validation
@@ -78,7 +81,8 @@ server/
 | `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up }, recipes }`. Free: never calls the model |
 | `GET /api/recipes` | `[{ recipe_id, title, base_servings, step_count }]` |
 | `GET /api/recipes/:id` | One full recipe (matches `RecipeSchema`), or 404 |
-| `POST /api/ask` | `{ recipe, step_index, question, servings?, image? }` → `{ answer, model, ms }` |
+| `POST /api/ask` | `{ recipe, step_index, question, servings?, image? }` → `{ answer, model, ms }`, plus `{ recipe, change_summary }` when it changed the recipe |
+| `POST /api/recipes/generate` | `{ request: "carbonara for 4", servings? }` → `{ recipe, model, ms }`: a classic recipe with `origin: "generated"`. Not stored on the server. 10 requests per minute per IP |
 | `GET /*` | The built glasses app; unknown paths without an extension get `index.html`, missing assets 404. `/test.html` is a browser page for trying `/api/ask` |
 
 All JSON responses are sent with `cache-control: no-store`. Errors are `{ error }`.
@@ -95,7 +99,7 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 
 | Status | When |
 | --- | --- |
-| 200 | `{ answer, model, ms }`: 1–2 plain-text sentences, at most about 30 words |
+| 200 | `{ answer, model, ms }`: 1–2 plain-text sentences, at most about 30 words. When the cook's words changed the recipe ("I don't have buttermilk"), also `recipe` (the whole updated recipe, same `recipe_id`, the change appended to `edits`) and `change_summary` |
 | 400 | Not JSON, or fails validation (`issues: [{ path, message }]`) |
 | 405 / 415 / 413 | Not POST / not `application/json` / body over 3 MB |
 | 429 | More than 30 requests in a minute from one client IP (`cf-connecting-ip`) |
@@ -106,8 +110,9 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 
 ## Adding a recipe
 
-Drop a JSON file in `recipes/` that matches `RecipeSchema` (`models/domain.js`). See
-`buttermilk-pancakes.json`. Rules:
+Drop a JSON file in `recipes/` that matches `RecipeSchema` (`models/domain.js`). It shows
+up in the glasses app's recipe list after the next deploy, sorted by file name. See
+`buttermilk-pancakes.json` (there are four so far). Rules:
 
 - `recipe_id` is lowercase letters, digits and dashes (the `/api/recipes/:id` route only
   matches `[a-z0-9-]+`).
@@ -166,13 +171,22 @@ text.
   startup and every 15 minutes with the free `countTokens` call (a cold first question took
   about 8 s instead of about 2 s), and reports `aiStatus()` for `/api/status`. Credentials
   and region details are in `CLAUDE.md` under "AI". `withBackup(call)` guards against
-  Gemini's occasional 7–18 s stalls: if a call hasn't finished after 3.5 s (or fails), it
+  Gemini's occasional 7–18 s stalls: if a call hasn't finished after `backupAfterMs` (3.5 s by
+  default; /api/ask uses 10 s and new recipes 15 s, since they write whole recipes) or fails, it
   starts one backup call and uses whichever finishes first. Use it for every user-facing
   AI call.
 - **`answer.js`**: `answerQuestion()` builds the prompt (`recipeContext()`: amounts scaled to
-  the requested servings, substitutes, the current step marked) and asks Gemini with
-  reasoning level `LOW` for a 1–2 sentence answer. It logs the time and token counts of
-  every answer, so `kamal app logs` shows latency in production.
+  the requested servings, substitutes, optional ingredients, earlier edits, the current step
+  marked, plus the recipe as JSON) and asks Gemini with reasoning level `LOW` for structured
+  JSON: a 1–2 sentence `answer`, and, only when the cook asked for a change, a
+  `change_summary` and the whole updated recipe as a draft. `ask.js` turns that draft into a
+  Recipe with `toRecipe()`, keeping the recipe id and the ids of unchanged ingredients. It
+  logs the time and token counts of every answer, so `kamal app logs` shows latency.
+- **`generate.js`**: `generateRecipe()` asks Gemini for the classic version of a named dish
+  as a draft and returns a Recipe with `origin: "generated"` and a `gen-<slug>-<random>` id.
+- **`recipeFormat.js`**: the JSON Schema Gemini writes recipes in, the shared writing rules
+  (metric units, at most 15 words a step, timers), and `recipeToDraft()`. No
+  `minItems`/`maxItems`: with them on both lists Gemini rejects the schema.
 
 ### `ask.js` (POST /api/ask)
 

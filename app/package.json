@@ -13,7 +13,8 @@
     "@wearables-ui-toolkit/icons": "130.33.0",
     "@wearables-ui-toolkit/mrbd": "130.33.0",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@types/react": "19.2.14",

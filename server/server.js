@@ -2,7 +2,9 @@
 // AI answers at /api/ask) belong here too, so a future native app can reuse them.
 //
 //   GET  /up                  health check (Kamal + Docker)
-//   POST /api/ask             answer a question about the current recipe step (see ask.js)
+//   POST /api/ask             answer a question about the current recipe step, or change
+//                             the recipe when the cook asks (see ask.js)
+//   POST /api/recipes/generate  write a classic recipe for a dish the cook names (generate.js)
 //   GET  /api/recipes[/:id]   recipe list / one recipe (see recipes.js)
 //   GET  /api/status          AI configuration and last Gemini warm-up (costs nothing)
 //   GET  /*                   static files from PUBLIC_DIR, SPA fallback to index.html
@@ -14,6 +16,7 @@ import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { aiStatus, warmUpAi } from "./ai/gemini.js";
 import { handleAsk } from "./ask.js";
+import { handleGenerate } from "./generate.js";
 import { sendJson } from "./http.js";
 import { getRecipe, listRecipes } from "./recipes.js";
 
@@ -47,6 +50,13 @@ const http = createServer((req, res) => {
   if (path === "/api/ask") {
     handleAsk(req, res).catch((err) => {
       console.error("ask crashed:", err);
+      if (!res.headersSent) sendJson(res, 500, { error: "Server error" });
+    });
+    return;
+  }
+  if (path === "/api/recipes/generate") {
+    handleGenerate(req, res).catch((err) => {
+      console.error("generate crashed:", err);
       if (!res.headersSent) sendJson(res, 500, { error: "Server error" });
     });
     return;

@@ -1,6 +1,7 @@
 // POST /api/ask: answer a question about the recipe the cook is following, optionally with a
-// photo of what they see. The glasses web app (and later the native app) shows the answer on
-// the HUD and reads it aloud. Text in, text out: speech is transcribed on the device.
+// photo of what they see, and change the recipe when the cook asks ("I don't have
+// buttermilk"). The glasses web app (and later the native app) shows the answer on the HUD
+// and reads it aloud. Text in, text out: speech is transcribed on the device.
 //
 // Request (JSON):
 //   recipe       a recipe matching RecipeSchema (models/domain.js)
@@ -8,14 +9,19 @@
 //   question     what the cook asked, as text
 //   servings     optional: servings the cook is making (default recipe.base_servings)
 //   image        optional: { mime_type: "image/jpeg" | "image/png" | "image/webp", data: base64 }
-// Response: { answer, model, ms }
+// Response: { answer, model, ms } plus, when the recipe changed, { recipe, change_summary }:
+//   the whole updated recipe (same recipe_id, change_summary appended to edits).
 //
 // The prompt lives in ai/answer.js, the Gemini client in ai/gemini.js.
 
 import { z } from "zod";
 import { answerQuestion } from "./ai/answer.js";
 import { MODEL, getClient, withBackup } from "./ai/gemini.js";
-import { RecipeSchema } from "./models/domain.js";
+import { RecipeSchema, toRecipe } from "./models/domain.js";
+
+// A question takes ~1.5-2.5 s; an answer that changes the recipe also writes the whole
+// recipe and takes ~8.5 s (measured). Send the backup request only after that.
+const EDIT_BACKUP_AFTER_MS = 10_000;
 import { clientIp, createRateLimiter, readBody, sendJson } from "./http.js";
 
 const MAX_BODY_BYTES = 3 * 1024 * 1024; // room for a ~2 MB photo as base64
@@ -83,11 +89,34 @@ export async function handleAsk(req, res) {
   }
 
   const started = performance.now();
+  const current = parsed.data.recipe;
   try {
-    const { value: answer, attempt } = await withBackup((signal) => answerQuestion(ai, parsed.data, signal));
+    // Building the changed recipe happens inside the call, so an invalid one from the model
+    // counts as a failed attempt and the backup request gets a chance.
+    const { value, attempt } = await withBackup(
+      async (signal) => {
+        const { answer, changeSummary, draft } = await answerQuestion(ai, parsed.data, signal);
+        const recipe = draft
+          ? toRecipe(draft, {
+              recipe_id: current.recipe_id,
+              origin: current.origin,
+              edits: [...current.edits, changeSummary],
+              previous: current,
+            })
+          : null;
+        return { answer, recipe, changeSummary };
+      },
+      { backupAfterMs: EDIT_BACKUP_AFTER_MS, attemptTimeoutMs: 20_000 },
+    );
     const ms = Math.round(performance.now() - started);
-    console.log(`ask: answered in ${ms} ms${attempt === 2 ? " (backup request won)" : ""}`);
-    sendJson(res, 200, { answer, model: MODEL, ms });
+    const what = value.recipe ? `changed the recipe (${value.changeSummary})` : "answered";
+    console.log(`ask: ${what} in ${ms} ms${attempt === 2 ? " (backup request won)" : ""}`);
+    sendJson(res, 200, {
+      answer: value.answer,
+      model: MODEL,
+      ms,
+      ...(value.recipe ? { recipe: value.recipe, change_summary: value.changeSummary } : {}),
+    });
   } catch (err) {
     const reason =
       err instanceof AggregateError ? err.errors.map((e) => e?.message ?? e).join(" | ") : (err?.message ?? err);
