@@ -166,13 +166,18 @@ text.
   `change_summary` and the whole updated recipe as a draft. `ask.js` turns that draft into a
   Recipe with `toRecipe()`, keeping the recipe id and the ids of unchanged ingredients. It
   logs the time and token counts of every answer, so `kamal app logs` shows latency.
-- **`generate.js`**: `findRecipeOnline()` gives Gemini its Google Search tool (on the
-  `global` endpoint: search isn't EU-only, see `CLAUDE.md`) and asks it to follow one real,
-  well-reviewed recipe and rewrite it as a draft, naming the website it used. `sourceOf()`
-  keeps that site name only if Google reports search queries (with our JSON output Google
-  doesn't return the pages themselves, so there's no link). `writeRecipe()` is the
-  fallback: the classic version from Gemini's own knowledge, in the EU. Both return a Recipe
-  with `origin: "generated"` and a `gen-<slug>-<random>` id.
+- **`generate.js`**: the home box in two steps. `sortRequest()` (EU, no search, ~1–2 s)
+  sorts what the cook said into a named dish, an answer with up to 3 suggestions (written
+  in the same call), or not food. `namedDish()` checks in code that the cook (or an earlier
+  suggestion) really named the dish, allowing typos and plurals: otherwise it's the answer,
+  so "a simple middle eastern recipe" gets ideas, not a recipe. Only for a dish,
+  `findOnline()` gives Gemini its Google Search tool (on the `global` endpoint: search isn't
+  EU-only, see `CLAUDE.md`) and asks it to follow one real, well-reviewed recipe and
+  rewrite it as a draft, naming the website it used. `sourceOf()` keeps that site name only
+  if Google reports search queries (with our JSON output Google doesn't return the pages
+  themselves, so there's no link). `writeOffline()` is the fallback: the classic version
+  from Gemini's own knowledge, in the EU. Both return a Recipe with `origin: "generated"`
+  and a `gen-<slug>-<random>` id.
 - **`recipeFormat.js`**: the JSON Schema Gemini writes recipes in, the shared writing rules
   (metric units, at most 15 words a step, timers), and `recipeToDraft()`. No
   `minItems`/`maxItems`: with them on both lists Gemini rejects the schema.

@@ -6,7 +6,7 @@ import { cleanAmount, cleanAmountsInText, cleanCount, cleanSpoon, convertUnitSys
 import { RecipeSchema, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
-import { NotFoodError, sourceOf, toResult } from "./ai/generate.js";
+import { NotFoodError, namedDish, sourceOf, toFound, toSorted } from "./ai/generate.js";
 import { recipeContext } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
 
@@ -288,22 +288,37 @@ test("generate request validation", () => {
   assert.equal(GenerateRequestSchema.safeParse({ request: "x", history: [{ role: "chef", text: "hi" }] }).success, false);
 });
 
-test("the home box sorts replies: recipe, answer with suggestions, or not food", () => {
+test("the home box sorts replies: a named dish, an answer with suggestions, or not food", () => {
   const input = { request: "ideas", history: [] };
-  const answer = toResult(
-    { intent: "chat", answer: " Try a curry. ", suggestions: ["Chicken curry", " ", "Dal", "Stir-fry", "Pasta"] },
+  const answer = toSorted(
+    { dish: "", intent: "chat", answer: " Try a curry. ", suggestions: ["Chicken curry", " ", "Dal", "Stir-fry", "Pasta"] },
     input,
-    { queries: [], source: null },
   );
-  assert.deepEqual(answer, { kind: "answer", answer: "Try a curry.", suggestions: ["Chicken curry", "Dal", "Stir-fry"], queries: [] });
-  assert.throws(() => toResult({ intent: "not_food" }, input, { queries: [], source: null }), NotFoodError);
-  assert.throws(() => toResult({ intent: "chat", answer: "" }, input, { queries: [], source: null })); // no answer
-  assert.throws(() => toResult({ intent: "recipe" }, input, { queries: [], source: null })); // no recipe
-  const found = toResult({ intent: "recipe", recipe: recipeToDraft(recipe) }, input, {
-    queries: ["pancakes recipe"],
-    source: { name: "example.com" },
-  });
-  assert.equal(found.kind, "recipe");
+  assert.deepEqual(answer, { kind: "answer", answer: "Try a curry.", suggestions: ["Chicken curry", "Dal", "Stir-fry"] });
+  assert.throws(() => toSorted({ dish: "", intent: "not_food" }, input), NotFoodError);
+  assert.throws(() => toSorted({ dish: "", intent: "chat", answer: "" }, input)); // no answer
+  assert.deepEqual(toSorted({ dish: "Lasagna", intent: "recipe" }, { request: "lasagna" }), { kind: "dish", dish: "Lasagna" });
+  // A dish the cook never named: the answer instead.
+  const vague = { request: "give me a simple middle eastern recipe" };
+  const picked = { dish: "Shakshuka", intent: "recipe", answer: "Try shakshuka or falafel.", suggestions: ["Shakshuka", "Falafel"] };
+  assert.equal(toSorted(picked, vague).kind, "answer");
+  const found = toFound(recipeToDraft(recipe), "pancakes", { queries: ["pancakes recipe"], source: { name: "example.com" } });
   assert.equal(found.searched, true);
   assert.equal(found.recipe.source.name, "example.com");
+  assert.equal(found.recipe.origin, "generated");
+});
+
+test("a dish counts only when the cook or an earlier suggestion named it", () => {
+  const said = (request, ...buddy) => ({ request, history: buddy.map((text) => ({ role: "buddy", text })) });
+  assert.ok(namedDish("Lasagna", said("lasagna")));
+  assert.ok(namedDish("Lasagna", said("lasgna"))); // a typo
+  assert.ok(namedDish("Classic Lasagna", said("lasagna")));
+  assert.ok(namedDish("Spaghetti Carbonara", said("carbonara")));
+  assert.ok(namedDish("chicken curry", said("I want to cook chicken curry")));
+  assert.ok(namedDish("Banana bread", said("a recipe for banana bread")));
+  assert.ok(namedDish("Crème brûlée", said("creme brulee")));
+  assert.ok(namedDish("Shakshuka", said("the third one", "Try these. (Suggested: Falafel; Hummus; Shakshuka)")));
+  assert.ok(!namedDish("Shakshuka", said("give me a simple midlde eastern recipe")));
+  assert.ok(!namedDish("Pan Seared Chicken Breast", said("chicken recipe")));
+  assert.ok(!namedDish("Easy Recipe", said("an easy recipe")));
 });

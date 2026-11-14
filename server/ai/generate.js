@@ -1,14 +1,19 @@
-// The home screen's box: the cook either wants a recipe ("lasagna", "chicken tikka
-// masala") or to talk about food ("what can I make with rice and eggs?", "ideas for a light
-// dinner"). Used by POST /api/recipes/generate. Gemini sorts the request in the same call:
-//   recipe    a full Recipe with origin "generated" (the device keeps it, the server doesn't)
-//   answer    a short spoken answer, plus up to 3 dish suggestions the cook can pick
-//   not food  NotFoodError (answered with 422)
+// The home screen's box, used by POST /api/recipes/generate, in two steps:
 //
-// findOnline(): Gemini with its Google Search tool: finds one real recipe and rewrites it in
-//   our format (`source` is the website it names), or answers with what it found.
-// writeOffline(): the fallback when the search call fails: the classic recipe from Gemini's own
-//   knowledge, or an answer, in the EU without search.
+// sortRequest(): a fast call in the EU, without search, sorts what the cook said:
+//   a named dish ("lasagna", "chicken tikka masala", or "the second one" after ideas)
+//   food talk ("what can I make with rice and eggs?", "a simple middle eastern recipe"):
+//     a short spoken answer, plus up to 3 dish suggestions the cook can pick
+//   not food: NotFoodError (answered with 422)
+// It always writes the answer too, so food talk is done in one call. A dish only counts when
+// the cook (or an earlier suggestion) actually named it: namedDish() checks that in code,
+// because the model likes to pick a dish for a vague wish.
+//
+// Then, for a dish only:
+// findOnline(): Gemini with its Google Search tool finds one real recipe and rewrites it in
+//   our format (`source` is the website it names).
+// writeOffline(): the fallback when the search call fails: the classic recipe from Gemini's
+//   own knowledge, in the EU without search.
 
 import { toRecipe } from "../models/domain.js";
 import { MODEL, SEARCH_MODEL } from "./gemini.js";
@@ -19,12 +24,12 @@ import { RECIPE_DRAFT_JSON_SCHEMA, RECIPE_WRITING_RULES, generatedRecipeId } fro
 const SERVINGS_RULE =
   "Keep the recipe's own number of servings as base_servings, with its amounts, even if the cook names a number of people: the app scales recipes itself.";
 
-const INTENT_RULE = [
-  "First decide what the cook wants and set intent:",
-  "- 'recipe': only when the cook names one specific dish ('lasagna', 'chicken tikka masala', 'a recipe for banana bread'), or picks one dish from earlier in the conversation ('the second one', 'let's do the curry').",
-  "- 'chat': everything else about food, cooking, ingredients or drinks: ideas or inspiration, what to make with what they have, advice, a cooking question ('what can I make with rice and eggs?', 'ideas for a light dinner', 'can I freeze cooked rice?'). A wish for a kind of dish that doesn't name one is 'chat' too, even when it says 'recipe', 'give me' or 'make me' ('give me a simple middle eastern dish', 'a simple middle eastern recipe', 'an easy dinner recipe', 'something quick with chicken', 'a pasta dish'): suggest dishes, don't pick one for them. The test: could you search for that exact dish by its name? Cuisines, meals, ingredients and adjectives are not dish names. So is a follow-up that changes or narrows earlier ideas ('something without eggs instead?', 'anything vegetarian?').",
-  "- 'not_food': anything that isn't about food, cooking or drinks, even if phrased as a question: sports, news, weather, people, homework, code, jokes, gibberish, or something that isn't safe to eat. Then leave out everything else.",
-  "For 'chat': leave out recipe. Write answer: one to three short sentences, at most 30 words, plain text, no lists or markdown; it is read aloud on smart glasses. suggestions: only the dishes your answer itself suggests (up to 3 short dish names the cook could ask a recipe for, e.g. 'Egg fried rice'); for a question that isn't asking for dishes, an empty list.",
+const SORT_INSTRUCTION = [
+  "You are Cooking Buddy, a cooking assistant on smart glasses. Sort what the cook says.",
+  "dish: the dish to cook, only when the cook names one specific dish ('lasagna', 'chicken curry', 'a recipe for banana bread') or picks one that Cooking Buddy suggested earlier ('the second one', 'let's do the falafel'). Write it the way the cook or Cooking Buddy wrote it, without adding words, plus any wish they gave for it ('vegetarian lasagna'). Otherwise leave it empty.",
+  "A cuisine, a meal, an ingredient or a kind of dish is not a dish name, even when the cook says 'recipe', 'give me' or 'make me': 'a simple middle eastern recipe', 'an easy dinner recipe', 'chicken recipe', 'something quick with chicken', 'a pasta dish' all leave dish empty. The test: could you search for that exact dish by its name?",
+  "intent: 'recipe' when dish is set; 'chat' for anything else about food, cooking, ingredients or drinks (ideas, what to make with what they have, advice, a cooking question, a follow-up that changes or narrows earlier ideas); 'not_food' for anything that isn't about food, cooking or drinks, even if phrased as a question: sports, news, weather, people, homework, code, jokes, gibberish, or something that isn't safe to eat.",
+  "Unless intent is 'not_food', always write answer: one to three short sentences, at most 30 words, plain text, no lists or markdown; it is read aloud on smart glasses. For a vague wish, suggest dishes that fit it. suggestions: only the dishes your answer itself suggests (up to 3 short dish names the cook could ask a recipe for, e.g. 'Egg fried rice'); for a question that isn't asking for dishes, an empty list.",
   "Earlier turns of the conversation, if any, come before what the cook says now: use them for follow-ups ('the second one' means the second dish Cooking Buddy suggested).",
 ].join("\n");
 
@@ -37,9 +42,8 @@ export class NotFoodError extends Error {
 }
 
 const SEARCH_INSTRUCTION = [
-  "You are Cooking Buddy, a cooking assistant on smart glasses.",
-  INTENT_RULE,
-  "For 'recipe': use Google Search to find a real, well-reviewed recipe for the dish, on a reputable recipe website.",
+  "You are Cooking Buddy, a cooking assistant on smart glasses. The cook names a dish to cook now.",
+  "Use Google Search to find a real, well-reviewed recipe for the dish, on a reputable recipe website.",
   "Pick one recipe from one page and follow it: its ingredients, amounts and method. Don't mix recipes or invent steps.",
   "Then rewrite it in the format below: amounts in metric, steps short enough for the glasses, a few substitutes.",
   SERVINGS_RULE,
@@ -49,61 +53,140 @@ const SEARCH_INSTRUCTION = [
 ].join("\n");
 
 const WRITE_INSTRUCTION = [
-  "You are Cooking Buddy, a cooking assistant on smart glasses.",
-  INTENT_RULE,
-  "For 'recipe': write the classic, widely known home-cooking version of the dish.",
+  "You are Cooking Buddy, a cooking assistant on smart glasses. The cook names a dish to cook now.",
+  "Write the classic, widely known home-cooking version of the dish.",
   "Keep it practical: common ingredients, 4-10 steps, nothing fancy unless they ask for it.",
   SERVINGS_RULE,
   RECIPE_WRITING_RULES,
 ].join("\n");
 
-const INTENT = { type: "string", enum: ["recipe", "chat", "not_food"] };
-const ANSWER = { type: "string", description: "For 'chat': 1-3 short sentences, at most 30 words, read aloud" };
-const SUGGESTIONS = {
-  type: "array",
-  items: { type: "string" },
-  description: "For 'chat': up to 3 dish names the cook could ask a recipe for, or empty",
+const SORT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    dish: { type: "string", description: "The dish the cook named or picked, as written, or empty" },
+    intent: { type: "string", enum: ["recipe", "chat", "not_food"] },
+    answer: { type: "string", description: "Unless not_food: 1-3 short sentences, at most 30 words, read aloud" },
+    suggestions: {
+      type: "array",
+      items: { type: "string" },
+      description: "Up to 3 dish names the answer suggests, or empty",
+    },
+  },
+  required: ["dish", "intent"],
+  propertyOrdering: ["dish", "intent", "answer", "suggestions"],
 };
 
 const ONLINE_JSON_SCHEMA = {
   type: "object",
   properties: {
-    intent: INTENT,
-    answer: ANSWER,
-    suggestions: SUGGESTIONS,
-    source_site: { type: "string", description: "For 'recipe': the recipe website's own domain, not a Google link" },
+    source_site: { type: "string", description: "The recipe website's own domain, not a Google link" },
     recipe: RECIPE_DRAFT_JSON_SCHEMA,
   },
-  required: ["intent"],
-  propertyOrdering: ["intent", "answer", "suggestions", "source_site", "recipe"],
-};
-
-const OFFLINE_JSON_SCHEMA = {
-  type: "object",
-  properties: { intent: INTENT, answer: ANSWER, suggestions: SUGGESTIONS, recipe: RECIPE_DRAFT_JSON_SCHEMA },
-  required: ["intent"],
-  propertyOrdering: ["intent", "answer", "suggestions", "recipe"],
+  required: ["source_site", "recipe"],
+  propertyOrdering: ["source_site", "recipe"],
 };
 
 /**
  * @typedef {{ request: string, history?: Array<{ role: "cook" | "buddy", text: string }> }} HomeInput
- * @typedef {{ kind: "recipe", recipe: object, searched: boolean, queries: string[] }
- *         | { kind: "answer", answer: string, suggestions: string[], queries: string[] }} HomeResult
+ * @typedef {{ kind: "dish", dish: string }
+ *         | { kind: "answer", answer: string, suggestions: string[] }} Sorted
+ * @typedef {{ recipe: object, searched: boolean, queries: string[] }} Found
  *   searched is false when Gemini answered without actually searching (no source then)
  */
 
 /**
- * Gemini with Google Search: a real recipe from the web, or an answer.
- * @param {import("@google/genai").GoogleGenAI} ai  a client on SEARCH_LOCATION (gemini.js)
+ * Step 1, in the EU without search: a dish to fetch, or the answer itself.
+ * @param {import("@google/genai").GoogleGenAI} ai
  * @param {HomeInput} input
  * @param {AbortSignal} [abortSignal]
- * @returns {Promise<HomeResult>}
+ * @returns {Promise<Sorted>}
  * @throws {NotFoodError} when the request isn't about food
  */
-export async function findOnline(ai, input, abortSignal) {
+export async function sortRequest(ai, input, abortSignal) {
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: [{ role: "user", parts: [{ text: describe(input) }] }],
+    config: {
+      systemInstruction: SORT_INSTRUCTION,
+      thinkingConfig: { thinkingLevel: "LOW" },
+      responseMimeType: "application/json",
+      responseJsonSchema: SORT_JSON_SCHEMA,
+      maxOutputTokens: 1024,
+      abortSignal,
+    },
+  });
+  const parsed = parseJson(response);
+  logUsage(MODEL, "sorted the home box", response, `intent ${parsed.intent}, dish ${JSON.stringify(parsed.dish ?? "")}`);
+  return toSorted(parsed, input);
+}
+
+/** Gemini's sorting as a Sorted. A dish nobody named becomes the answer instead. */
+export function toSorted(parsed, input) {
+  if (parsed.intent === "not_food") throw new NotFoodError(input.request);
+  const dish = String(parsed.dish ?? "").trim();
+  if (dish && namedDish(dish, input)) return { kind: "dish", dish };
+  const answer = String(parsed.answer ?? "").trim();
+  if (!answer) throw new Error(`no answer (intent ${JSON.stringify(parsed.intent)}, dish ${JSON.stringify(dish)})`);
+  const suggestions = (Array.isArray(parsed.suggestions) ? parsed.suggestions : [])
+    .map((s) => String(s).trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  return { kind: "answer", answer, suggestions };
+}
+
+// Words that don't make a dish name ("a recipe for", "classic", "easy").
+const FILLER = new Set(
+  "a an the and or with of for in on to my me some recipe recipes dish classic easy simple quick homemade best".split(" "),
+);
+
+/**
+ * Whether the cook (or Cooking Buddy, earlier) actually named this dish: at least half of its
+ * words, minus filler, appear in what was said, allowing a typo or a plural. So "the third
+ * one" after "(Suggested: Falafel; Hummus; Shakshuka)" gives Shakshuka, but "a simple middle
+ * eastern recipe" doesn't.
+ */
+export function namedDish(dish, { request, history = [] }) {
+  const said = new Set(words([request, ...history.map((t) => t.text)].join(" ")));
+  const wanted = words(dish).filter((w) => !FILLER.has(w));
+  if (!wanted.length) return false;
+  const found = wanted.filter((w) => [...said].some((s) => sameWord(w, s)));
+  return found.length * 2 >= wanted.length;
+}
+
+function words(text) {
+  return text.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").match(/[a-z]+/g) ?? [];
+}
+
+function sameWord(a, b) {
+  if (a === b) return true;
+  const stem = (w) => w.replace(/(es|s)$/, "");
+  if (stem(a) === stem(b)) return true;
+  return Math.min(a.length, b.length) >= 5 && editDistance(a, b) <= Math.floor(Math.max(a.length, b.length) / 5);
+}
+
+function editDistance(a, b) {
+  let row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) {
+      next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    row = next;
+  }
+  return row[b.length];
+}
+
+/**
+ * Step 2 for a dish, with Google Search: a real recipe from the web.
+ * @param {import("@google/genai").GoogleGenAI} ai  a client on SEARCH_LOCATION (gemini.js)
+ * @param {string} dish  from sortRequest()
+ * @param {AbortSignal} [abortSignal]
+ * @returns {Promise<Found>}
+ */
+export async function findOnline(ai, dish, abortSignal) {
   const response = await ai.models.generateContent({
     model: SEARCH_MODEL,
-    contents: [{ role: "user", parts: [{ text: describe(input) }] }],
+    contents: [{ role: "user", parts: [{ text: `The dish: ${dish}` }] }],
     config: {
       systemInstruction: SEARCH_INSTRUCTION,
       tools: [{ googleSearch: {} }],
@@ -116,52 +199,39 @@ export async function findOnline(ai, input, abortSignal) {
   });
   const metadata = response.candidates?.[0]?.groundingMetadata;
   const queries = metadata?.webSearchQueries ?? [];
-  logUsage(SEARCH_MODEL, "answered the home box", response, `searched ${JSON.stringify(queries)}`);
+  logUsage(SEARCH_MODEL, `found ${JSON.stringify(dish)}`, response, `searched ${JSON.stringify(queries)}`);
   const parsed = parseJson(response);
-  return toResult(parsed, input, { queries, source: sourceOf(queries, parsed.source_site) });
+  return toFound(parsed.recipe, dish, { queries, source: sourceOf(queries, parsed.source_site) });
 }
 
 /**
  * The fallback, without search (EU): the classic recipe from Gemini's own knowledge, without
- * a source, or an answer.
- * @param {HomeInput} input
- * @returns {Promise<HomeResult>}
- * @throws {NotFoodError} when the request isn't about food
+ * a source.
+ * @param {string} dish
+ * @returns {Promise<Found>}
  */
-export async function writeOffline(ai, input, abortSignal) {
+export async function writeOffline(ai, dish, abortSignal) {
   const response = await ai.models.generateContent({
     model: MODEL,
-    contents: [{ role: "user", parts: [{ text: describe(input) }] }],
+    contents: [{ role: "user", parts: [{ text: `The dish: ${dish}` }] }],
     config: {
       systemInstruction: WRITE_INSTRUCTION,
       thinkingConfig: { thinkingLevel: "LOW" },
       responseMimeType: "application/json",
-      responseJsonSchema: OFFLINE_JSON_SCHEMA,
+      responseJsonSchema: RECIPE_DRAFT_JSON_SCHEMA,
       maxOutputTokens: 4096,
       abortSignal,
     },
   });
-  logUsage(MODEL, "answered the home box offline", response);
-  return toResult(parseJson(response), input, { queries: [], source: null });
+  logUsage(MODEL, `wrote ${JSON.stringify(dish)}`, response);
+  return toFound(parseJson(response), dish, { queries: [], source: null });
 }
 
-/** Gemini's sorted reply as a HomeResult. Throws if it's not food or doesn't hold together. */
-export function toResult(parsed, input, { queries, source }) {
-  if (parsed.intent === "not_food") throw new NotFoodError(input.request);
-  if (parsed.intent === "chat") {
-    const answer = String(parsed.answer ?? "").trim();
-    if (!answer) throw new Error("chat without an answer");
-    const suggestions = (Array.isArray(parsed.suggestions) ? parsed.suggestions : [])
-      .map((s) => String(s).trim())
-      .filter(Boolean)
-      .slice(0, 3);
-    return { kind: "answer", answer, suggestions, queries };
-  }
-  const draft = parsed.recipe;
-  if (!draft) throw new Error(`no recipe (intent ${JSON.stringify(parsed.intent)})`);
+/** A recipe draft from Gemini as a Recipe the device keeps. */
+export function toFound(draft, dish, { queries, source }) {
+  if (!draft) throw new Error("no recipe");
   return {
-    kind: "recipe",
-    recipe: toRecipe(draft, { recipe_id: generatedRecipeId(draft.title ?? input.request), origin: "generated", edits: [], source }),
+    recipe: toRecipe(draft, { recipe_id: generatedRecipeId(draft.title ?? dish), origin: "generated", edits: [], source }),
     searched: queries.length > 0,
     queries,
   };

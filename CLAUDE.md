@@ -10,8 +10,10 @@ Live at https://cook.simonnars.com.
 
 Keep the glasses UI simple: plain text lists you scroll, not a phone screen on your face.
 
-- **Home** (`/`): one field at the bottom for a dish or food talk, sorted by the AI in the
-  same call (`POST /api/recipes/generate`). A dish ("lasagna"): the AI finds a real recipe on
+- **Home** (`/`): one field at the bottom for a dish or food talk (`POST
+  /api/recipes/generate`). A fast EU call sorts it first. Only a named dish ("lasagna",
+  or "the second one" after ideas) fetches a recipe; a kind of dish ("a simple middle
+  eastern recipe") is food talk. A dish: the AI finds a real recipe on
   the web, converts it, and cooking starts. Food talk ("ideas for a light dinner", "what can
   I make with rice and eggs?"): a short answer (at most 30 words), read aloud, with up to 3
   dishes as rows ("Get the recipe") that ask for that recipe when pinched. Follow-ups work
@@ -120,16 +122,18 @@ Build everything so that port is cheap:
   `step_index` the answer covers the whole recipe; the web app never sends one. **Response:**
   `{ answer, model, ms }`, plus `{ recipe, change_summary }` when the cook's words changed
   the recipe. Answers are 1–2 sentences, plain text, meant to be shown and spoken.
-- **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara" }` returns
-  `{ recipe, found_online, model, ms }`. Gemini searches the web, picks one well-reviewed
+- **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara" }` first sorts
+  the request (EU, no search, `sortRequest()` in `server/ai/generate.js`; food talk gets its
+  answer from this call), then for a named dish returns `{ kind: "recipe", recipe,
+  found_online, model, ms }`. Gemini searches the web, picks one well-reviewed
   recipe and rewrites it in our format ; `recipe.source` is the website it used,
   e.g. `{ name: "seriouseats.com" }`. There's no link: with our JSON output format Google
   returns its search queries but not the pages, so `found_online` means Google reported a
   search. If the search fails, Gemini writes the classic version itself (`found_online:
   false`, `source: null`).
   Requests that aren't about food ("write me a poem", gibberish, inedible things) get `422
-  { error, not_a_recipe: true }` instead of a recipe: Gemini decides in the same call, before
-  searching, and the app shows the server's message. `GET /api/status` shows how the last
+  { error, not_a_recipe: true }` instead of a recipe: the sorting call decides, before any
+  search, and the app shows the server's message. `GET /api/status` shows how the last
   search went. The server stores nothing; the device
   keeps the recipe and sends it to `/api/ask` like any recipe. Edits keep the source.
 - **Servings are the app's job, and the setting always wins:** a number in the request
