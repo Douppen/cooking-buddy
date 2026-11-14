@@ -124,9 +124,20 @@ export function cleanAmount(amount) {
 // "56 g", "113ml", "1.5 g" in step text.
 const AMOUNT_IN_TEXT = new RegExp(String.raw`(?<![\d.,])(${String.raw`\d+(?:\.\d+)?`})(\s*)(g|ml)\b`, "g");
 
-/** Step text with the same clean amounts as the ingredient list: "Add 56 g butter" → "Add 55 g butter". */
+// "0.5 tsp", "1.5 tbsp" in step text.
+const SPOON_IN_TEXT = /(?<![\d.,])(\d+(?:\.\d+)?)\s*(tsp|tbsp)\b/g;
+
+/**
+ * Step text with amounts written like the ingredient list shows them: "Add 56 g butter" →
+ * "Add 55 g butter", "0.5 tsp salt" → "½ tsp salt", "4 tsp sugar" → "1½ tbsp sugar".
+ */
 export function cleanAmountsInText(text) {
-  return text.replace(AMOUNT_IN_TEXT, (_match, value, space, unit) => `${cleanAmount(Number(value))}${space}${unit}`);
+  return text
+    .replace(AMOUNT_IN_TEXT, (_match, value, space, unit) => `${cleanAmount(Number(value))}${space}${unit}`)
+    .replace(SPOON_IN_TEXT, (_match, value, unit) => {
+      const shown = spoons(Number(value), unit);
+      return `${shown.amount} ${shown.unit}`;
+    });
 }
 
 // --- Temperatures in text -----------------------------------------------------------------

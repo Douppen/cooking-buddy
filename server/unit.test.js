@@ -123,6 +123,8 @@ test("amounts are rounded the way recipes write them", () => {
   const cases = { 0.3: 0.5, 1.2: 1, 2.4: 2.5, 7.3: 7, 19: 20, 56.7: 55, 113: 110, 125: 125, 175: 175, 227: 230, 480: 480, 1130: 1150, 1250: 1250 };
   for (const [raw, clean] of Object.entries(cases)) assert.equal(cleanAmount(Number(raw)), clean, `${raw}`);
   assert.equal(cleanAmountsInText("Add 56 g butter and 113ml milk, then 2 eggs."), "Add 55 g butter and 110ml milk, then 2 eggs.");
+  assert.equal(cleanAmountsInText("Stir in 0.5 tsp salt and 1.5 tbsp oil."), "Stir in ½ tsp salt and 1½ tbsp oil.");
+  assert.equal(cleanAmountsInText("Add 1 tsp vanilla."), "Add 1 tsp vanilla.");
 });
 
 test("spoons and pinches: same in both systems, scaled between tsp and tbsp", () => {
