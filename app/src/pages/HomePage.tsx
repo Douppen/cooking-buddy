@@ -9,10 +9,10 @@ import {
   VerticalList,
 } from '@wearables-ui-toolkit/mrbd';
 import {useNavigate} from 'react-router-dom';
-import {generateRecipe} from '../api';
+import {ServerMessageError, generateRecipe} from '../api';
 import {useRecipes} from '../RecipesContext';
 
-type Status = {kind: 'idle'} | {kind: 'writing'; dish: string} | {kind: 'failed'};
+type Status = {kind: 'idle'} | {kind: 'writing'; dish: string} | {kind: 'failed'; message?: string};
 
 // The only screen besides cooking: say a dish ("lasagna for 4") and the AI finds a recipe
 // and cooking starts. Above the field, the most recent recipe, so a cook who left it by
@@ -46,7 +46,8 @@ export function HomePage() {
       .catch(err => {
         if (controller.signal.aborted) return;
         console.error('Writing the recipe failed:', err);
-        setStatus({kind: 'failed'});
+        // The server's own words when it gave some ("That doesn't sound like something to cook…").
+        setStatus({kind: 'failed', message: err instanceof ServerMessageError ? err.message : undefined});
       });
   };
 
@@ -54,7 +55,7 @@ export function HomePage() {
     status.kind === 'writing'
       ? `Finding a recipe for ${status.dish}…`
       : status.kind === 'failed'
-        ? "Couldn't find that recipe. Try again."
+        ? (status.message ?? "Couldn't find that recipe. Try again.")
         : 'What do you want to cook?';
 
   return (

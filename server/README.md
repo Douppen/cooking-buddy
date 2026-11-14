@@ -79,7 +79,7 @@ server/
 | `GET /up` | Health check for Kamal and Docker, answers `OK` |
 | `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up } }`. Free: never calls the model |
 | `POST /api/ask` | `{ recipe, question, step_index?, servings?, image? }` → `{ answer, model, ms }`, plus `{ recipe, change_summary }` when it changed the recipe |
-| `POST /api/recipes/generate` | `{ request: "carbonara for 4", servings? }` → `{ recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name }` of the website (e.g. `bbcgoodfood.com`, no link). If the search fails, a classic recipe Gemini writes itself (`found_online: false`, `source: null`). Not stored on the server. 10 requests per minute per IP |
+| `POST /api/recipes/generate` | `{ request: "carbonara for 4", servings? }` → `{ recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name }` of the website (e.g. `bbcgoodfood.com`, no link). If the search fails, a classic recipe Gemini writes itself (`found_online: false`, `source: null`). A request that isn't about food gets `422 { error, not_a_recipe: true }`. Not stored on the server. 10 requests per minute per IP |
 | `GET /*` | The built glasses app; unknown paths without an extension get `index.html`, missing assets 404. `/test.html` is a browser page for trying `/api/ask` |
 
 All JSON responses are sent with `cache-control: no-store`. Errors are `{ error }`.

@@ -14,8 +14,24 @@ import { RECIPE_DRAFT_JSON_SCHEMA, RECIPE_WRITING_RULES, generatedRecipeId } fro
 const SERVINGS_RULE =
   "If they name a number of people or servings, use it as base_servings and scale the amounts; otherwise keep the recipe's own servings.";
 
+// Only food: anything else is answered with 422 instead of a recipe (generate.js).
+const FOOD_RULE =
+  "First decide whether the request is about something to cook or eat: a dish, drink, baked good, snack, " +
+  "or a vague food wish ('something with chicken', 'a quick dinner'). If it isn't (any other topic, " +
+  "gibberish, a joke, or something that isn't safe to eat), set is_food to false, leave out recipe, " +
+  "and don't search. Otherwise set is_food to true.";
+
+/** The request isn't about food ("write me a poem", "asdfgh"); answered with 422, no fallback. */
+export class NotFoodError extends Error {
+  constructor(request) {
+    super(`not a food request: ${JSON.stringify(request).slice(0, 80)}`);
+    this.name = "NotFoodError";
+  }
+}
+
 const SEARCH_INSTRUCTION = [
   "You find recipes for Cooking Buddy, a cooking assistant on smart glasses.",
+  FOOD_RULE,
   "Use Google Search to find a real, well-reviewed recipe for the dish the cook asks for, on a reputable recipe website.",
   "Pick one recipe from one page and follow it: its ingredients, amounts and method. Don't mix recipes or invent steps.",
   "Then rewrite it in the format below: amounts in metric, steps short enough for the glasses, a few substitutes.",
@@ -28,6 +44,7 @@ const SEARCH_INSTRUCTION = [
 
 const WRITE_INSTRUCTION = [
   "You write recipes for Cooking Buddy, a cooking assistant on smart glasses.",
+  FOOD_RULE,
   "Write the classic, widely known home-cooking version of the dish the cook asks for.",
   "Keep it practical: common ingredients, 4-10 steps, nothing fancy unless they ask for it.",
   SERVINGS_RULE,
@@ -35,14 +52,24 @@ const WRITE_INSTRUCTION = [
   RECIPE_WRITING_RULES,
 ].join("\n");
 
+const IS_FOOD = { type: "boolean", description: "False if the request isn't about something to cook or eat" };
+
 const FOUND_RECIPE_JSON_SCHEMA = {
   type: "object",
   properties: {
+    is_food: IS_FOOD,
     source_site: { type: "string", description: "The recipe website's own domain, not a Google link" },
     recipe: RECIPE_DRAFT_JSON_SCHEMA,
   },
-  required: ["source_site", "recipe"],
-  propertyOrdering: ["source_site", "recipe"],
+  required: ["is_food"],
+  propertyOrdering: ["is_food", "source_site", "recipe"],
+};
+
+const WRITTEN_RECIPE_JSON_SCHEMA = {
+  type: "object",
+  properties: { is_food: IS_FOOD, recipe: RECIPE_DRAFT_JSON_SCHEMA },
+  required: ["is_food"],
+  propertyOrdering: ["is_food", "recipe"],
 };
 
 /**
@@ -51,6 +78,7 @@ const FOUND_RECIPE_JSON_SCHEMA = {
  * @param {AbortSignal} [abortSignal]
  * @returns {Promise<{ recipe: object, searched: boolean, queries: string[] }>}  searched is
  *   false when Gemini answered without actually searching (then the recipe has no source)
+ * @throws {NotFoodError} when the request isn't about food
  */
 export async function findRecipeOnline(ai, input, abortSignal) {
   const response = await ai.models.generateContent({
@@ -68,7 +96,8 @@ export async function findRecipeOnline(ai, input, abortSignal) {
   });
   const metadata = response.candidates?.[0]?.groundingMetadata;
   logUsage(SEARCH_MODEL, "found a recipe", response, `searched ${JSON.stringify(metadata?.webSearchQueries ?? [])}`);
-  const { source_site: site, recipe: draft } = parseJson(response);
+  const { is_food: isFood, source_site: site, recipe: draft } = parseJson(response);
+  if (isFood === false) throw new NotFoodError(input.request);
   const queries = metadata?.webSearchQueries ?? [];
   const source = sourceOf(queries, site);
   return {
@@ -78,7 +107,10 @@ export async function findRecipeOnline(ai, input, abortSignal) {
   };
 }
 
-/** The fallback: a classic recipe from Gemini's own knowledge, without a source. */
+/**
+ * The fallback: a classic recipe from Gemini's own knowledge, without a source.
+ * @throws {NotFoodError} when the request isn't about food
+ */
 export async function writeRecipe(ai, input, abortSignal) {
   const response = await ai.models.generateContent({
     model: MODEL,
@@ -87,13 +119,14 @@ export async function writeRecipe(ai, input, abortSignal) {
       systemInstruction: WRITE_INSTRUCTION,
       thinkingConfig: { thinkingLevel: "LOW" },
       responseMimeType: "application/json",
-      responseJsonSchema: RECIPE_DRAFT_JSON_SCHEMA,
+      responseJsonSchema: WRITTEN_RECIPE_JSON_SCHEMA,
       maxOutputTokens: 4096,
       abortSignal,
     },
   });
   logUsage(MODEL, "wrote a recipe", response);
-  const draft = parseJson(response);
+  const { is_food: isFood, recipe: draft } = parseJson(response);
+  if (isFood === false) throw new NotFoodError(input.request);
   return toRecipe(draft, { recipe_id: generatedRecipeId(draft?.title ?? input.request), origin: "generated", edits: [] });
 }
 

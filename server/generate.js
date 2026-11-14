@@ -7,12 +7,13 @@
 //   recipe has origin "generated", a "gen-…" id, and `source` ({ name } of the website, e.g.
 //   "seriouseats.com", or null). found_online is false when the recipe came from the fallback
 //   or Gemini answered without searching.
+//   422 { error, not_a_recipe: true } when the request isn't about food ("write me a poem").
 //
 // The server doesn't keep recipes: the device stores them and sends the whole recipe to
 // /api/ask. The prompts live in ai/generate.js.
 
 import { z } from "zod";
-import { findRecipeOnline, writeRecipe } from "./ai/generate.js";
+import { NotFoodError, findRecipeOnline, writeRecipe } from "./ai/generate.js";
 import { MODEL, SEARCH_LOCATION, SEARCH_MODEL, getClient, withBackup } from "./ai/gemini.js";
 import { createRateLimiter, failureReason, readJsonRequest, sendJson } from "./http.js";
 
@@ -23,6 +24,18 @@ const allowRequest = createRateLimiter(10); // per client IP: a recipe costs mor
 const SEARCH_TIMEOUT_MS = 20_000;
 const WRITE_BACKUP_AFTER_MS = 10_000;
 const WRITE_TIMEOUT_MS = 18_000;
+
+const NOT_FOOD_MESSAGE = "That doesn't sound like something to cook. Try a dish, like 'carbonara for 4'.";
+
+// withBackup reports both attempts' errors together (AggregateError).
+function isNotFood(err) {
+  return err instanceof NotFoodError || (err instanceof AggregateError && err.errors.some((e) => e instanceof NotFoodError));
+}
+
+function sendNotFood(res, request, ms) {
+  console.log(`generate: not a food request in ${ms} ms: ${JSON.stringify(request.request).slice(0, 80)}`);
+  sendJson(res, 422, { error: NOT_FOOD_MESSAGE, not_a_recipe: true });
+}
 
 export const GenerateRequestSchema = z.object({
   request: z.string().trim().min(1).max(200),
@@ -75,6 +88,11 @@ export async function handleGenerate(req, res) {
     sendJson(res, 200, { recipe, found_online: searched, model: SEARCH_MODEL, ms: elapsed() });
     return;
   } catch (err) {
+    if (isNotFood(err)) {
+      lastSearch = { ok: true, ms: elapsed(), at: new Date().toISOString(), request: request.request, not_food: true };
+      sendNotFood(res, request, elapsed());
+      return;
+    }
     lastSearch = {
       ok: false,
       ms: elapsed(),
@@ -97,6 +115,10 @@ export async function handleGenerate(req, res) {
     );
     sendJson(res, 200, { recipe, found_online: false, model: MODEL, ms: elapsed() });
   } catch (err) {
+    if (isNotFood(err)) {
+      sendNotFood(res, request, elapsed());
+      return;
+    }
     console.error(`generate failed after ${elapsed()} ms:`, failureReason(err));
     sendJson(res, 502, { error: "Couldn't find a recipe for that. Try again." });
   }

@@ -114,7 +114,10 @@ Build everything so that port is cheap:
   returns its search queries but not the pages, so `found_online` means Google reported a
   search. If the search fails, Gemini writes the classic version itself (`found_online:
   false`, `source: null`).
-  `GET /api/status` shows how the last search went. The server stores nothing; the device
+  Requests that aren't about food ("write me a poem", gibberish, inedible things) get `422
+  { error, not_a_recipe: true }` instead of a recipe: Gemini decides in the same call, before
+  searching, and the app shows the server's message. `GET /api/status` shows how the last
+  search went. The server stores nothing; the device
   keeps the recipe and sends it to `/api/ask` like any recipe. Edits keep the source.
 - **Recipe format for the AI:** Gemini writes a "draft" (`RecipeDraftSchema`: no ids or step
   indexes) as structured JSON (`server/ai/recipeFormat.js`), and `toRecipe()` in

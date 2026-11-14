@@ -67,6 +67,9 @@ export async function askQuestion(
   return {answer: body.answer, recipe: body.recipe as Recipe | undefined};
 }
 
+/** A failure the server explained in words meant for the cook ("That doesn't sound like something to cook…"). */
+export class ServerMessageError extends Error {}
+
 async function postJson(
   url: string,
   payload: unknown,
@@ -80,6 +83,9 @@ async function postJson(
     signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
   });
   const body = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) throw new Error(typeof body.error === 'string' ? body.error : `${url} answered ${res.status}`);
+  if (!res.ok) {
+    if (typeof body.error === 'string') throw new ServerMessageError(body.error);
+    throw new Error(`${url} answered ${res.status}`);
+  }
   return body;
 }
