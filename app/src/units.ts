@@ -118,7 +118,7 @@ const AMOUNT = String.raw`\d+(?:\.\d+)?[¼½¾⅓⅔]?|[¼½¾⅓⅔]`;
 const GLYPHS: Record<string, number> = {'¼': 0.25, '½': 0.5, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3};
 const SCALABLE_IN_TEXT = new RegExp(
   String.raw`(?<![\d.,¼½¾⅓⅔])(${AMOUNT})(?:\s*(?:-|–|to)\s*(${AMOUNT}))?` +
-    String.raw`(?:\s*(kg|g|ml|l|tsp|tbsp|pinch(?:es)?)\b|(?=((?:\s+[A-Za-z][\w'-]*){1,3})))`,
+    String.raw`(?:\s*(kg|g|ml|l|tsp|tbsp|pinch(?:es)?)\b|((?:\s+[A-Za-z][\w'-]*){1,3}))`,
   'g',
 );
 // Words that don't identify a counted ingredient ("2 large eggs": "eggs" does).
@@ -132,8 +132,25 @@ function amountValue(text: string): number {
   return Number(text);
 }
 
-function stem(word: string): string {
-  return word.toLowerCase().replace(/(?:es|s)$/, '');
+/** A noun's singular, lowercase: "eggs" → "egg", "cloves" → "clove", "cherries" → "cherry", "tomatoes" → "tomato". */
+function nounSingular(word: string): string {
+  const w = word.toLowerCase();
+  if (/[^aeiou]ies$/.test(w)) return w.slice(0, -3) + 'y';
+  if (/(?:ch|sh|x|ss|zz|o)es$/.test(w)) return w.slice(0, -2);
+  if (/[^s]s$/.test(w)) return w.slice(0, -1);
+  return w;
+}
+
+/** The noun in the number the count needs, keeping its capital: 1 → "egg", 2 → "eggs". */
+function inflect(word: string, count: number): string {
+  const one = nounSingular(word);
+  let shown = one;
+  if (count > 1) {
+    if (/[^aeiou]y$/.test(one)) shown = one.slice(0, -1) + 'ies';
+    else if (/(?:ch|sh|x|s|z)$/.test(one) || one === 'tomato' || one === 'potato') shown = one + 'es';
+    else shown = one + 's';
+  }
+  return word[0] === word[0].toUpperCase() ? shown[0].toUpperCase() + shown.slice(1) : shown;
 }
 
 /**
@@ -145,7 +162,7 @@ export function countWords(ingredients: ReadonlyArray<{name: string; base_unit: 
     .filter(ing => ing.base_unit === 'unit')
     .flatMap(ing => ing.name.split(',')[0].toLowerCase().split(/[^a-z]+/))
     .filter(word => word.length >= 3 && !NOT_INGREDIENT_WORDS.has(word))
-    .map(stem);
+    .map(nounSingular);
 }
 
 /**
@@ -167,10 +184,17 @@ export function scaleAmountsInText(text: string, factor: number, counted: readon
         }
         return shown.map(m => `${m.amount} ${m.unit}`).join('–');
       }
-      // A count: only if a counted ingredient follows, and not a time or size ("2 cm").
-      const following = (words ?? '').trim().toLowerCase().split(/\s+/);
-      if (NOT_COUNT_WORDS.has(following[0]) || !following.some(w => counted.includes(stem(w)))) return match;
-      return values.map(v => decimal(v, 1)).join('–');
+      // A count: only if a counted ingredient follows, and not a time or size ("2 cm"). The
+      // ingredient's noun follows the new number: "2 large eggs" at ½ → "1 large egg".
+      const parts = (words ?? '').split(/(\s+)/); // words and the spaces between them
+      const isIngredient = (part: string | undefined) => part !== undefined && counted.includes(nounSingular(part));
+      let nounAt = parts.findIndex(isIngredient);
+      // parts: ['', ' ', 'garlic', ' ', 'cloves']; the first word is parts[2].
+      if (NOT_COUNT_WORDS.has(parts[2]?.toLowerCase() ?? '') || nounAt < 0) return match;
+      // The noun ends the run of ingredient words: "garlic cloves", "cherry tomatoes".
+      while (isIngredient(parts[nounAt + 2])) nounAt += 2;
+      parts[nounAt] = inflect(parts[nounAt], Math.max(...values));
+      return values.map(v => decimal(v, 1)).join('–') + parts.join('');
     },
   );
 }

@@ -97,7 +97,7 @@ test('step text scales amounts and counted ingredients, not times or sizes', () 
     {name: 'Butter', base_unit: 'g'},
   ]);
   const scale = (text: string, factor: number) => scaleAmountsInText(text, factor, counted);
-  assert.equal(scale('Beat 140 g butter with 2 large eggs for 2 min.', 0.5), 'Beat 70 g butter with 1 large eggs for 2 min.');
+  assert.equal(scale('Beat 140 g butter with 2 large eggs for 2 min.', 0.5), 'Beat 70 g butter with 1 large egg for 2 min.');
   assert.equal(scale('Fry 3 garlic cloves in 2 tbsp oil at 180°C for 10 min.', 2), 'Fry 6 garlic cloves in 4 tbsp oil at 180°C for 10 min.');
   assert.equal(scale('Add ½ tsp salt and 1½ tbsp sugar.', 2), 'Add 1 tsp salt and 3 tbsp sugar.');
   assert.equal(scale('Pour in 300 ml stock, then 15 ml soy sauce.', 0.5), 'Pour in 150 ml stock, then 1½ tsp soy sauce.');
@@ -105,4 +105,25 @@ test('step text scales amounts and counted ingredients, not times or sizes', () 
   assert.equal(scale('Cut into 2 cm cubes and rest 5 minutes.', 3), 'Cut into 2 cm cubes and rest 5 minutes.');
   assert.equal(scale('A pinch of salt, 1 pinch pepper.', 4), 'A pinch of salt, ¼ tsp pepper.');
   assert.equal(scale('Beat 140 g butter.', 1), 'Beat 140 g butter.');
+});
+
+test('a scaled count keeps its noun in the right number', () => {
+  const counted = countWords([
+    {name: 'Eggs', base_unit: 'unit'},
+    {name: 'Garlic cloves, minced', base_unit: 'unit'},
+    {name: 'Lime', base_unit: 'unit'},
+    {name: 'Cherry tomatoes', base_unit: 'unit'},
+    {name: 'Peaches', base_unit: 'unit'},
+  ]);
+  const scale = (text: string, factor: number) => scaleAmountsInText(text, factor, counted);
+  assert.equal(scale('Add 1 lime, juiced.', 2), 'Add 2 limes, juiced.');
+  assert.equal(scale('Crack 4 Eggs into a bowl.', 0.25), 'Crack 1 Egg into a bowl.');
+  assert.equal(scale('Mince 1 garlic clove.', 3), 'Mince 3 garlic cloves.');
+  assert.equal(scale('Halve 2 cherry tomatoes.', 0.5), 'Halve 1 cherry tomato.');
+  assert.equal(scale('Halve 1 cherry tomato.', 2), 'Halve 2 cherry tomatoes.');
+  assert.equal(scale('Slice 1 peach.', 3), 'Slice 3 peaches.');
+  assert.equal(scale('Use 1 egg.', 0.5), 'Use 0.5 egg.');
+  assert.equal(scale('Beat 1–2 eggs.', 2), 'Beat 2–4 eggs.');
+  // A time before an ingredient word is still a time.
+  assert.equal(scale('Simmer 5 minutes garlic cloves and all.', 2), 'Simmer 5 minutes garlic cloves and all.');
 });
