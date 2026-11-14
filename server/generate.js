@@ -2,7 +2,8 @@
 // gets a recipe back in the RecipeSchema format. Gemini first looks for a real recipe on the
 // web (Google Search); if that fails, it writes the classic version itself.
 //
-// Request (JSON):  { request: "carbonara for 4", servings?: 4 }
+// Request (JSON):  { request: "carbonara" }. No servings: the recipe keeps its own, and the
+//                  app scales it to the cook's servings setting.
 // Response:        { recipe, found_online, model, ms }
 //   recipe has origin "generated", a "gen-…" id, and `source` ({ name } of the website, e.g.
 //   "seriouseats.com", or null). found_online is false when the recipe came from the fallback
@@ -39,7 +40,6 @@ function sendNotFood(res, request, ms) {
 
 export const GenerateRequestSchema = z.object({
   request: z.string().trim().min(1).max(200),
-  servings: z.number().int().positive().max(20).optional(),
 });
 
 // For GET /api/status: how the last web search went, so a failing search shows up without

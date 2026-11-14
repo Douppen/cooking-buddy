@@ -224,9 +224,19 @@ test("a web recipe's source is the site Gemini names, only if it searched", () =
   assert.deepEqual(kept.source, source);
 });
 
+test("scaled metric amounts are tidy, small liquids in spoons (same as the app)", () => {
+  const show = (amount, base_unit) => convertUnitSystem([{ id: "x", name: "X", amount, base_unit }], "metric")[0].display;
+  assert.equal(show(27.5, "g"), "30 g X");
+  assert.equal(show(56.7, "g"), "55 g X");
+  assert.equal(show(125, "g"), "125 g X");
+  assert.equal(show(30, "ml"), "2 tbsp X");
+  assert.equal(show(480, "ml"), "480 ml X");
+  assert.equal(show(1.5, "unit"), "1.5 X");
+});
+
 test("generate request validation", () => {
   assert.ok(GenerateRequestSchema.safeParse({ request: "carbonara for 4" }).success);
-  assert.ok(GenerateRequestSchema.safeParse({ request: "lasagne", servings: 6 }).success);
   assert.equal(GenerateRequestSchema.safeParse({ request: "   " }).success, false);
-  assert.equal(GenerateRequestSchema.safeParse({ request: "x", servings: 0 }).success, false);
+  // Servings aren't part of a recipe request (the app scales); an old client's value is ignored.
+  assert.deepEqual(GenerateRequestSchema.parse({ request: "lasagne", servings: 6 }), { request: "lasagne" });
 });

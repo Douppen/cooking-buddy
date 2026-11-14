@@ -107,7 +107,7 @@ Build everything so that port is cheap:
   `step_index` the answer covers the whole recipe; the web app never sends one. **Response:**
   `{ answer, model, ms }`, plus `{ recipe, change_summary }` when the cook's words changed
   the recipe. Answers are 1–2 sentences, plain text, meant to be shown and spoken.
-- **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara for 4" }` returns
+- **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara" }` returns
   `{ recipe, found_online, model, ms }`. Gemini searches the web, picks one well-reviewed
   recipe and rewrites it in our format ; `recipe.source` is the website it used,
   e.g. `{ name: "seriouseats.com" }`. There's no link: with our JSON output format Google
@@ -119,6 +119,10 @@ Build everything so that port is cheap:
   searching, and the app shows the server's message. `GET /api/status` shows how the last
   search went. The server stores nothing; the device
   keeps the recipe and sends it to `/api/ask` like any recipe. Edits keep the source.
+- **Servings are the app's job:** a new recipe keeps its source's servings (`base_servings`);
+  the app scales it to the cook's servings setting with the same tidy rounding as stored
+  amounts (`cleanAmount()`, spoons under 50 ml) in `app/src/units.ts` and
+  `server/scaling.js`. Send the setting as `servings` to `/api/ask` so answers match.
 - **Recipe format for the AI:** Gemini writes a "draft" (`RecipeDraftSchema`: no ids or step
   indexes) as structured JSON (`server/ai/recipeFormat.js`), and `toRecipe()` in
   `models/domain.js` turns it into a valid `Recipe`. Ingredients have `optional`; recipes

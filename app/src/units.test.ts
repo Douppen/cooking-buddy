@@ -6,7 +6,8 @@ import {inUnitSystem, measureText} from './units.ts';
 
 test('metric amounts are shown as stored', () => {
   assert.equal(measureText(250, 'g', 'metric'), '250 g');
-  assert.equal(measureText(12.345, 'ml', 'metric'), '12.3 ml');
+  assert.equal(measureText(12.345, 'ml', 'metric'), '2½ tsp'); // under 50 ml: spoons
+  assert.equal(measureText(480, 'ml', 'metric'), '480 ml');
   assert.equal(measureText(2, 'unit', 'metric'), '2');
   assert.equal(inUnitSystem('Bake at 200°C for 25 min.', 'metric'), 'Bake at 200°C for 25 min.');
 });
@@ -76,4 +77,15 @@ test('scaled spoons move between tsp and tbsp; more than 2 pinches become tsp', 
   assert.equal(measureText(0.5, 'pinch', 'metric'), '1 pinch');
   assert.equal(measureText(4, 'pinch', 'metric'), '¼ tsp');
   assert.equal(measureText(8, 'pinch', 'metric'), '½ tsp');
+});
+
+test('scaled metric amounts are tidy, small liquids in spoons', () => {
+  assert.equal(measureText(27.5, 'g', 'metric'), '30 g'); // 55 g for half the servings
+  assert.equal(measureText(56.7, 'g', 'metric'), '55 g');
+  assert.equal(measureText(1.4, 'g', 'metric'), '1.5 g');
+  assert.equal(measureText(125, 'g', 'metric'), '125 g');
+  assert.equal(measureText(30, 'ml', 'metric'), '2 tbsp');
+  assert.equal(measureText(5, 'ml', 'metric'), '1 tsp');
+  assert.equal(measureText(60, 'ml', 'metric'), '60 ml');
+  assert.equal(measureText(1.5, 'unit', 'metric'), '1.5');
 });

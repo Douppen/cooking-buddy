@@ -11,8 +11,10 @@ import { toRecipe } from "../models/domain.js";
 import { MODEL, SEARCH_MODEL } from "./gemini.js";
 import { RECIPE_DRAFT_JSON_SCHEMA, RECIPE_WRITING_RULES, generatedRecipeId } from "./recipeFormat.js";
 
+// The app scales recipes to the cook's servings setting itself, so a recipe always keeps
+// its own servings.
 const SERVINGS_RULE =
-  "If they name a number of people or servings, use it as base_servings and scale the amounts; otherwise keep the recipe's own servings.";
+  "Keep the recipe's own number of servings as base_servings, with its amounts, even if the cook names a number of people: the app scales recipes itself.";
 
 // Only food: anything else is answered with 422 instead of a recipe (generate.js).
 const FOOD_RULE =
@@ -74,7 +76,7 @@ const WRITTEN_RECIPE_JSON_SCHEMA = {
 
 /**
  * @param {import("@google/genai").GoogleGenAI} ai  a client on SEARCH_LOCATION (gemini.js)
- * @param {{ request: string, servings?: number }} input
+ * @param {{ request: string }} input
  * @param {AbortSignal} [abortSignal]
  * @returns {Promise<{ recipe: object, searched: boolean, queries: string[] }>}  searched is
  *   false when Gemini answered without actually searching (then the recipe has no source)
@@ -149,8 +151,8 @@ function bareDomain(text) {
   return text.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
 }
 
-function describe({ request, servings }) {
-  return servings ? `${request} (for ${servings} servings)` : request;
+function describe({ request }) {
+  return request;
 }
 
 function parseJson(response) {

@@ -18,7 +18,7 @@ export function scaleIngredients(ingredients, factor) {
 
 /**
  * Converts scaled ingredients (from scaleIngredients) to display amounts in the chosen
- * unit system. Metric is shown as stored, to one decimal. Imperial: grams become oz (lb
+ * unit system. Metric: tidy numbers (cleanAmount), under 50 ml in spoons. Imperial: grams become oz (lb
  * from about 1 lb up); millilitres become tsp below 1 tbsp, tbsp below ¼ cup, then cups,
  * in the fractions a measuring set has. Counts (eggs, cloves) never change.
  * Spoons and pinches look the same in both systems (see spoons()).
@@ -48,8 +48,11 @@ const HALVES = [[0, ""], [1 / 2, "½"], [1, ""]];
 
 function toUnitSystem(qty, baseUnit, unitSystem) {
   if (SPOON_UNITS.has(baseUnit)) return spoons(qty, baseUnit);
-  if (unitSystem !== "imperial" || baseUnit === "unit") {
-    return { amount: decimal(qty, 1), unit: baseUnit === "unit" ? "" : baseUnit };
+  if (baseUnit === "unit") return { amount: decimal(qty, 1), unit: "" };
+  if (unitSystem !== "imperial") {
+    // Scaled amounts get the same tidy numbers as stored ones; small liquids read as spoons.
+    if (baseUnit === "ml" && qty < SPOONS_BELOW_ML) return spoons(mlInTsp(qty), "tsp");
+    return { amount: String(cleanAmount(qty)), unit: baseUnit };
   }
   if (baseUnit === "g") {
     const oz = qty / G_PER_OZ;

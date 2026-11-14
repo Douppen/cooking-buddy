@@ -36,7 +36,13 @@ const SMALL_INCHES: Fractions = [[0, ''], [1 / 8, '⅛'], [1 / 4, '¼']];
  */
 export function measure(amount: number, unit: BaseUnit, system: UnitSystem): Measure {
   if (unit === 'tsp' || unit === 'tbsp' || unit === 'pinch') return spoons(amount, unit);
-  if (system === 'metric' || unit === 'unit') return {amount: decimal(amount, 1), unit: unit === 'unit' ? '' : unit};
+  if (unit === 'unit') return {amount: decimal(amount, 1), unit: ''};
+  if (system === 'metric') {
+    // Scaled amounts get the same tidy numbers as stored ones (cleanAmount), and small liquid
+    // amounts read as spoons: 30 ml → 2 tbsp. server/scaling.js does the same for answers.
+    if (unit === 'ml' && amount < SPOONS_BELOW_ML) return spoons(amount / ML_PER_METRIC_TSP, 'tsp');
+    return {amount: String(cleanAmount(amount)), unit};
+  }
   if (unit === 'g') {
     const oz = amount / G_PER_OZ;
     if (oz >= 15.5) return {amount: decimal(oz / 16, 1), unit: 'lb'};
@@ -49,6 +55,21 @@ export function measure(amount: number, unit: BaseUnit, system: UnitSystem): Mea
   const cups = amount / ML_PER_CUP;
   const shown = fraction(cups, cups < 4 ? CUP_FRACTIONS : QUARTERS);
   return {amount: shown, unit: cups < 1.125 ? 'cup' : 'cups'};
+}
+
+/** Under this many ml, a metric amount is shown in spoons (a metric tsp is 5 ml). */
+const SPOONS_BELOW_ML = 50;
+const ML_PER_METRIC_TSP = 5;
+
+/**
+ * A g or ml amount rounded the way recipes write them: under 5 to the half, 5–10 to the
+ * whole, 10–100 to 5, 100–1000 to 10, above that to 50; multiples of 25 from 100 up stay.
+ * 27.5 → 30, 113 → 110, 125 → 125. Same as cleanAmount() in server/scaling.js.
+ */
+export function cleanAmount(amount: number): number {
+  if (amount >= 100 && amount % 25 === 0) return amount;
+  const step = amount < 5 ? 0.5 : amount < 10 ? 1 : amount < 100 ? 5 : amount < 1000 ? 10 : 50;
+  return Math.max(Math.round(amount / step) * step, step);
 }
 
 /**
