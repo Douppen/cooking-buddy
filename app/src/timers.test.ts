@@ -1,7 +1,7 @@
 // `npm test` in app/ (node's test runner, see units.test.ts).
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {applyTimerCommand, markDone, timeLeft, timerDoneSpeech, type Timer} from './timers.ts';
+import {applyTimerCommand, markDone, shownLabel, timeLeft, timerDoneSpeech, type Timer} from './timers.ts';
 
 const at = (h: number, m: number) => new Date(2026, 10, 14, h, m).getTime();
 
@@ -38,4 +38,7 @@ test('a timer counts down to the second, then shows "Time\'s up"', () => {
   assert.equal(other.done, undefined);
   assert.equal(timerDoneSpeech(timer), "Time's up! Pasta timer is done.");
   assert.equal(timerDoneSpeech({...timer, label: 'Timer'}), "Time's up! Your timer is done.");
+  // A plain timer shows no label: "⏱ Time's up", not "Timer Time's up".
+  assert.equal(shownLabel({...timer, label: 'Timer'}), '');
+  assert.equal(shownLabel(timer), 'Pasta');
 });

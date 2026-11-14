@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {timerOutline} from '@wearables-ui-toolkit/icons';
 import {IconImage, TextStyle, TextView} from '@wearables-ui-toolkit/mrbd';
-import {timeLeft, type Timer} from './timers';
+import {shownLabel, timeLeft, type Timer} from './timers';
 
 // The timers, one line each: icon, label, time left counting down every second ("Time's up"
 // once it ended). Its own component so only this row redraws each second, not the lists.
@@ -22,9 +22,11 @@ export function TimerDock({timers}: {timers: readonly Timer[]}) {
       {timers.map(timer => (
         <div key={timer.id} className="timer-line">
           <IconImage source={timerOutline} className="timer-icon" />
-          <TextView as="span" textStyle={TextStyle.BODY2}>
-            {timer.label}
-          </TextView>
+          {shownLabel(timer) && (
+            <TextView as="span" textStyle={TextStyle.BODY2}>
+              {shownLabel(timer)}
+            </TextView>
+          )}
           <TextView as="span" textStyle={TextStyle.BODY2_EMPHASIZED} className="timer-text">
             {timeLeft(timer, now)}
           </TextView>

@@ -56,8 +56,8 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   timer under the lists, the toolkit's timer icon, the label and the time left counting
   down every second, "⏱ Pasta 7:58" (the cook asked for a live countdown; `TimerDock.tsx`
   redraws only that row). Starting one shows no text above the field: the line appears and
-  the voice confirms. At most 3; the same label restarts it. When one ends, its line reads
-  "Time's up" for 3 s, with a short two-tone ping (Web Audio, `app/src/chime.ts`, plays even
+  the voice confirms. A plain timer has no label on its line ("⏱ 7:58"). At most 3; the same
+  label restarts it. When one ends, its time changes to "Time's up" for 6 s, with a short two-tone ping (Web Audio, `app/src/chime.ts`, plays even
   with Voice off) and then "Time's up! Pasta timer is done." said.
   Timers live on the cooking screen only (leaving it stops them). On home, a timer request
   gets "Timers work once a recipe is open…" (not the not-food message).

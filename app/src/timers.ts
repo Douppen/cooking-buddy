@@ -57,10 +57,16 @@ export function markDone(timers: readonly Timer[], id: string): Timer[] {
   return timers.map(t => (t.id === id ? {...t, done: true} : t));
 }
 
+/** The label shown on the line: none for a plain "Timer" (the icon says it), so the line
+ *  reads "⏱ 7:58", then "⏱ Time's up"; a named one reads "⏱ Pasta 7:58". */
+export function shownLabel(timer: Timer): string {
+  return timer.label === 'Timer' ? '' : timer.label;
+}
+
 /** Said after the ping when a timer ends. */
 export function timerDoneSpeech(timer: Timer): string {
   return timer.label === 'Timer' ? "Time's up! Your timer is done." : `Time's up! ${timer.label} timer is done.`;
 }
 
 /** How long an ended timer shows "Time's up" before it goes. */
-export const TIMER_DONE_VISIBLE_MS = 3_000;
+export const TIMER_DONE_VISIBLE_MS = 6_000;
