@@ -304,8 +304,10 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
   hides its title, so the servings box is a toolkit `Container` that takes left/right
   itself while focused. Native: a focusable row that handles left/right swipes. The units
   and voice switches are toolkit `Switch`es in `Container`s whose surface only shows when
-  focused. Speech is MP3 from `/api/speak` in an `<audio>` element, falling back to the
-  browser's `speechSynthesis`; native plays the same MP3 (fallback: the phone's TTS).
+  focused. Speech is MP3 from `/api/speak` in an `<audio>` element, played 1.15× faster
+  at the same pitch (`PLAYBACK_RATE` in `app/src/speech.ts`: the voices felt slow), falling
+  back to the browser's `speechSynthesis` at the same rate; native plays the same MP3 at
+  that rate, pitch kept (fallback: the phone's TTS).
 - The cooking screen (since 2026-11-14) is two views: ingredients, then all steps, each a
   vertical list. On the web, the toolkit `Pager` slides between them and its focus
   navigation scrolls a focused `ScrollView` about 60 px per up/down swipe, then moves focus

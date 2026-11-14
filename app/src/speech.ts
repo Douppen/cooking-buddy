@@ -21,6 +21,9 @@ const WAIT_FOR_VOICE_MS = 4_000;
 // Short fixed phrases ("Recipe updated.") are kept, so they play at once next time.
 const CACHE_MAX_CHARS = 40;
 const CACHE_SIZE = 10;
+// Every voice plays this much faster than it was made, at the same pitch: the voices
+// sounded a bit slow, and this keeps each one's sound (the browser stretches the audio).
+const PLAYBACK_RATE = 1.15;
 // The recipe title goes along for older recipes without a cuisine (the server allows 600).
 const CONTEXT_MAX_CHARS = 600;
 
@@ -81,6 +84,8 @@ export function speak(text: string, voice: Voice = {}, by: SpeechOwner | null = 
         if (id !== current) return started();
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
+        audio.preservesPitch = true;
+        audio.playbackRate = PLAYBACK_RATE;
         playing = {audio, url};
         audio.addEventListener('ended', () => {
           if (playing?.audio === audio) stopPlaying();
@@ -200,6 +205,7 @@ function speakLocally(text: string): void {
   }
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'en-GB';
+  utterance.rate = PLAYBACK_RATE;
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utterance);
 }
