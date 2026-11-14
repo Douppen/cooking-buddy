@@ -124,7 +124,8 @@ Build everything so that port is cheap:
   searching, and the app shows the server's message. `GET /api/status` shows how the last
   search went. The server stores nothing; the device
   keeps the recipe and sends it to `/api/ask` like any recipe. Edits keep the source.
-- **Servings are the app's job:** a new recipe keeps its source's servings (`base_servings`).
+- **Servings are the app's job, and the setting always wins:** a number in the request
+  ("lasagna for 3") is ignored on purpose. A new recipe keeps its source's servings (`base_servings`).
   The servings the cook picked on home are saved on the recipe as `servings` (kept through
   edits). The cooking screen scales the ingredient list and the amounts in step text
   (`scaleAmountsInText()`: numbers with a unit or a counted ingredient, not times or sizes)
