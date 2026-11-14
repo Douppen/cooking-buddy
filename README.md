@@ -35,7 +35,7 @@ during the demo.
 
 ### Infra facts
 
-- Box: Hetzner VPS `46.224.236.167`, shared with abbis-web (prod + staging) and vettis.
+- Box: Hetzner VPS `46.224.236.167`, shared with two other apps behind one kamal-proxy.
   Its firewall only accepts 80/443 from Cloudflare, so `cook` must stay **Proxied**.
 - DNS: `A cook → 46.224.236.167`, proxied, in the Cloudflare `simonnars.com` zone. SSL mode
   for this host must be Full (strict); Flexible causes a redirect loop.
@@ -53,4 +53,4 @@ Export `KAMAL_REGISTRY_PASSWORD` (a GHCR PAT) and the two TLS vars first.
 | Stuck lock        | `kamal lock release`       |
 
 **Never** run `kamal remove`, `kamal setup` or `kamal proxy reboot` here: they touch the
-shared kamal-proxy and take abbis.app, staging and vettis down with it.
+shared kamal-proxy and take the other apps on the box down with it.

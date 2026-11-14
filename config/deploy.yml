@@ -1,8 +1,8 @@
 # Cooking Buddy production deploy. One container serves the glasses web app and the
 # WebSocket relay at cook.simonnars.com.
 #
-# Runs on the SHARED Hetzner VPS next to abbis-web (prod + staging) and vettis, behind the
-# box's single kamal-proxy, which routes by hostname. Modeled on vettis/config/deploy.yml.
+# Runs on a SHARED Hetzner VPS next to two other apps, behind the box's single
+# kamal-proxy, which routes by hostname.
 #
 # Shared box rules: unique `service` name, unique host, and NEVER run `kamal remove`,
 # `kamal setup` or `kamal proxy reboot` from this repo: those touch the proxy every other
@@ -26,7 +26,7 @@ registry:
 
 builder:
   arch: amd64
-  # GHCR mishandles buildx provenance/SBOM attestations (same workaround as vettis).
+  # GHCR mishandles buildx provenance/SBOM attestations, which breaks pulls by digest.
   provenance: false
   sbom: false
 
