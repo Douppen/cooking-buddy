@@ -1,6 +1,5 @@
 import {useEffect, useMemo, useReducer, useRef, useState} from 'react';
 import {
-  InputTextView,
   Pager,
   PagerPage,
   ScrollView,
@@ -20,6 +19,7 @@ import {
   initialCookingState,
   stepText,
 } from './cookingState';
+import {AskField, SEND_HINT} from './AskField';
 import {speak, stopSpeaking} from './speech';
 import type {UnitSystem} from './units';
 
@@ -167,7 +167,12 @@ export function Cooking({
         </PagerPage>
       </Pager>
       <div className="answer-dock" aria-live="polite">
-        {shown && (
+        {/* With text to send, how to send it; then the answer. */}
+        {question.trim() && !busy ? (
+          <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
+            {SEND_HINT}
+          </TextView>
+        ) : shown && (
           <>
             {shown.label && (
               <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
@@ -181,15 +186,15 @@ export function Cooking({
         )}
       </div>
       <div className="ask-dock">
-        <InputTextView
+        <AskField
           text={question}
           hint="Ask, or say what you're missing"
           onTextChange={setQuestion}
           onSend={send}
-          showActionButton={false}
-          showLoader={busy}
+          busy={busy}
           loadingLabel="Thinking"
-          inputProps={{'aria-label': 'Ask or change the recipe', maxLength: 500}}
+          ariaLabel="Ask or change the recipe"
+          maxLength={500}
         />
       </div>
     </div>

@@ -2,7 +2,6 @@ import {useEffect, useRef, useState, type KeyboardEvent} from 'react';
 import {
   Container,
   createDefaultContainerMaterial,
-  InputTextView,
   ListItem,
   Page,
   Switch,
@@ -15,6 +14,7 @@ import {
 import {useNavigate} from 'react-router-dom';
 import {ServerMessageError, askHome, findRecipe, type Turn} from '../api';
 import {useRecipes} from '../RecipesContext';
+import {AskField, SEND_HINT} from '../AskField';
 import {speak, stopSpeaking} from '../speech';
 
 type Status =
@@ -148,6 +148,8 @@ export function HomePage() {
   };
 
   const message = (() => {
+    // With text to send, how to send it (the glasses' composer hands it over without Enter).
+    if (dish.trim() && !busy) return SEND_HINT;
     switch (status.kind) {
       case 'thinking':
         return 'Thinking…';
@@ -184,15 +186,15 @@ export function HomePage() {
           </TextView>
         </div>
         <div className="ask-dock">
-          <InputTextView
+          <AskField
             text={dish}
             hint="Say a dish, or ask for ideas"
             onTextChange={setDish}
             onSend={send}
-            showActionButton={false}
-            showLoader={busy}
+            busy={busy}
             loadingLabel={status.kind === 'fetching' ? 'Getting the recipe' : 'Thinking'}
-            inputProps={{'aria-label': 'Dish to cook, or a food question', maxLength: 200}}
+            ariaLabel="Dish to cook, or a food question"
+            maxLength={200}
           />
           {/* While an answer shows, the setup controls step aside so the answer and its
               dish rows fit the 600×600 display; they're back on the next question. */}

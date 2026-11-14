@@ -38,8 +38,12 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   steps** in one list; swiping right again does nothing. **Swipe left** (`prev`) goes back
   to the ingredients, and no further. Swipe up/down scrolls the list; past its end, focus
   moves to the ask field.
-- **Pinch** (`select`) on the ask field asks by voice through the glasses' dictation. The
-  field sits under both views. Questions are about **the whole recipe**, not one step: the
+- **Asking (home and cooking, `app/src/AskField.tsx`):** pinch the field to speak (the
+  glasses' composer: dictation, handwriting or keyboard). It hands back the whole text with
+  no Enter, so focus then moves to the **➤ send button** by itself: pinch to send, or swipe
+  left to the field and pinch to say it again. The line above the field says so while
+  there's text. Only the index pinch (Enter) and swipes (arrows) reach a web app; the
+  middle pinch is the system's Back. The cooking field sits under both views. Questions are about **the whole recipe**, not one step: the
   app sends no `step_index` to `/api/ask`.
 - **The answer shows above the ask field** on either view for 15 s and is read aloud.
 - **A command ("swap the butter for oil", "leave out the carrots", "make it vegetarian") or
@@ -238,6 +242,9 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
 
 ## Porting notes
 
+- The ask field (`AskField.tsx`): the web app gets no microphone, only the system composer,
+  so sending is a separate ➤ target that takes focus once the text is in. Native (with the
+  phone's speech recognition) can make it one record button: pinch to record, pinch to send.
 - Home (`app/src/pages/HomePage.tsx`, 2026-11-14) is built to fit 600×600 with no scrolling:
   last recipe row, dish field, units switch, servings box. The toolkit's slider `ListItem`
   hides its title, so the servings box is a toolkit `Container` that takes left/right
