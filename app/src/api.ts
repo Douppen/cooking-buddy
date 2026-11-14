@@ -49,11 +49,31 @@ export interface Answer {
 const ASK_TIMEOUT_MS = 30_000;
 const GENERATE_TIMEOUT_MS = 45_000;
 
-/** Ask the AI to write a classic recipe for a dish, e.g. "carbonara for 4". */
-export async function generateRecipe(request: string, signal: AbortSignal): Promise<Recipe> {
-  const body = await postJson('/api/recipes/generate', {request}, signal, GENERATE_TIMEOUT_MS);
-  if (!body.recipe) throw new Error('No recipe in the answer');
-  return body.recipe as Recipe;
+/** One turn of the conversation on home, oldest first, sent back so follow-ups work. */
+export interface Turn {
+  role: 'cook' | 'buddy';
+  text: string;
+}
+
+/** What the home box gives back: a recipe to cook, or an answer with dishes to offer. */
+export type HomeReply =
+  | {kind: 'recipe'; recipe: Recipe}
+  | {kind: 'answer'; answer: string; suggestions: string[]};
+
+/**
+ * The home box: a dish ("lasagna") gives a recipe found on the web; food talk ("ideas for a
+ * light dinner", "what can I make with rice and eggs?") gives a short answer and up to 3
+ * dish suggestions. `history` is the conversation so far, for follow-ups ("the second one").
+ * Anything not about food throws a ServerMessageError with the server's words.
+ */
+export async function askHome(request: string, history: Turn[], signal: AbortSignal): Promise<HomeReply> {
+  const body = await postJson('/api/recipes/generate', {request, history}, signal, GENERATE_TIMEOUT_MS);
+  if (body.kind === 'answer' && typeof body.answer === 'string') {
+    const suggestions = Array.isArray(body.suggestions) ? body.suggestions.filter((s): s is string => typeof s === 'string') : [];
+    return {kind: 'answer', answer: body.answer, suggestions};
+  }
+  if (!body.recipe) throw new Error('No recipe in the reply');
+  return {kind: 'recipe', recipe: body.recipe as Recipe};
 }
 
 /**

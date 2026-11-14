@@ -10,16 +10,21 @@ Live at https://cook.simonnars.com.
 
 Keep the glasses UI simple: plain text lists you scroll, not a phone screen on your face.
 
-- **Home** (`/`): a dish field at the bottom. The cook says a dish ("lasagna for 4"), the AI
-  finds a real recipe on the web and converts it (`POST /api/recipes/generate`), and
-  cooking starts. There is no recipe picker and no built-in recipes. Above the field, only
+- **Home** (`/`): one field at the bottom for a dish or food talk, sorted by the AI in the
+  same call (`POST /api/recipes/generate`). A dish ("lasagna"): the AI finds a real recipe on
+  the web, converts it, and cooking starts. Food talk ("ideas for a light dinner", "what can
+  I make with rice and eggs?"): a short answer (at most 30 words), read aloud, with up to 3
+  dishes as rows ("Get the recipe") that ask for that recipe when pinched. Follow-ups work
+  ("the second one"): the last 10 turns go along until a recipe opens. While an answer
+  shows, the units switch, servings box and last-recipe row step aside so it fits 600×600.
+  Anything not about food: "Let's keep it to food…". There is no recipe picker and no built-in recipes. Above the field, only
   the **most recent recipe** as one row ("Back to your recipe"), so a cook who left cooking
   by accident (system Back) pinches it to return. A new dish simply replaces it on top.
   Older recipes stay saved on the device (for a "previous recipes" list later) but aren't shown.
 - **Servings:** a box at the bottom of home, styled like a list row ("‹ 2 servings ›",
   "Swipe left or right to change"), 2 by default each time home opens, 1 to 8. Only while
-  it has focus, **swipe right** adds one and **swipe left** takes one away. Scaling the recipe to it in the app is
-  not built yet (see "Servings are the app's job" below), so for now it has no effect. Focus order on home:
+  it has focus, **swipe right** adds one and **swipe left** takes one away. The new recipe is
+  scaled to it (see "Servings are the app's job" below). Focus order on home:
   last recipe, dish field, units switch, servings.
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
@@ -148,7 +153,7 @@ Build everything so that port is cheap:
   (`withBackup` in `server/ai/gemini.js`) covers Gemini's occasional stalls: after 10 s for
   `/api/ask`, 15 s for a new recipe.
 - The endpoints are public and every call costs money: `/api/ask` is limited to 30 requests
-  and `/api/recipes/generate` to 10 per minute per client IP (Cloudflare's
+  and `/api/recipes/generate` to 20 per minute per client IP (Cloudflare's
   `cf-connecting-ip`).
 
 ## Layout

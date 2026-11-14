@@ -6,7 +6,7 @@ import { cleanAmount, cleanAmountsInText, cleanCount, cleanSpoon, convertUnitSys
 import { RecipeSchema, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
-import { sourceOf } from "./ai/generate.js";
+import { NotFoodError, sourceOf, toResult } from "./ai/generate.js";
 import { recipeContext } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
 
@@ -281,5 +281,29 @@ test("generate request validation", () => {
   assert.ok(GenerateRequestSchema.safeParse({ request: "carbonara for 4" }).success);
   assert.equal(GenerateRequestSchema.safeParse({ request: "   " }).success, false);
   // Servings aren't part of a recipe request (the app scales); an old client's value is ignored.
-  assert.deepEqual(GenerateRequestSchema.parse({ request: "lasagne", servings: 6 }), { request: "lasagne" });
+  assert.deepEqual(GenerateRequestSchema.parse({ request: "lasagne", servings: 6 }), { request: "lasagne", history: [] });
+  // The conversation so far on home, for follow-ups.
+  const history = [{ role: "cook", text: "ideas for dinner?" }, { role: "buddy", text: "Try a curry or a stir-fry." }];
+  assert.ok(GenerateRequestSchema.safeParse({ request: "the second one", history }).success);
+  assert.equal(GenerateRequestSchema.safeParse({ request: "x", history: [{ role: "chef", text: "hi" }] }).success, false);
+});
+
+test("the home box sorts replies: recipe, answer with suggestions, or not food", () => {
+  const input = { request: "ideas", history: [] };
+  const answer = toResult(
+    { intent: "chat", answer: " Try a curry. ", suggestions: ["Chicken curry", " ", "Dal", "Stir-fry", "Pasta"] },
+    input,
+    { queries: [], source: null },
+  );
+  assert.deepEqual(answer, { kind: "answer", answer: "Try a curry.", suggestions: ["Chicken curry", "Dal", "Stir-fry"], queries: [] });
+  assert.throws(() => toResult({ intent: "not_food" }, input, { queries: [], source: null }), NotFoodError);
+  assert.throws(() => toResult({ intent: "chat", answer: "" }, input, { queries: [], source: null })); // no answer
+  assert.throws(() => toResult({ intent: "recipe" }, input, { queries: [], source: null })); // no recipe
+  const found = toResult({ intent: "recipe", recipe: recipeToDraft(recipe) }, input, {
+    queries: ["pancakes recipe"],
+    source: { name: "example.com" },
+  });
+  assert.equal(found.kind, "recipe");
+  assert.equal(found.searched, true);
+  assert.equal(found.recipe.source.name, "example.com");
 });

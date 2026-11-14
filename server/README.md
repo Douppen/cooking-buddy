@@ -79,7 +79,7 @@ server/
 | `GET /up` | Health check for Kamal and Docker, answers `OK` |
 | `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up } }`. Free: never calls the model |
 | `POST /api/ask` | `{ recipe, question, step_index?, servings?, image? }` → `{ answer, model, ms }`, plus `{ recipe, change_summary }` when it changed the recipe |
-| `POST /api/recipes/generate` | `{ request: "carbonara" }` → `{ recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name }` of the website (e.g. `bbcgoodfood.com`, no link). If the search fails, a classic recipe Gemini writes itself (`found_online: false`, `source: null`). A request that isn't about food gets `422 { error, not_a_recipe: true }`. The recipe keeps its own servings (the app scales it to the cook's servings setting; send that as `servings` to `/api/ask` so answers match). Not stored on the server. 10 requests per minute per IP |
+| `POST /api/recipes/generate` | The home box. `{ request, history? }` (history: the conversation so far, up to 10 `{ role: "cook" \| "buddy", text }` turns). A dish gives `{ kind: "recipe", recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name }` of the website (no link); if the search fails, a classic recipe Gemini writes itself (`found_online: false`). Food talk gives `{ kind: "answer", answer, suggestions, model, ms }`: at most 30 words to show and read aloud, up to 3 dish names. Not about food: `422 { error, not_a_recipe: true }`. A recipe keeps its own servings (the app scales it). Nothing is stored on the server. 20 requests per minute per IP |
 | `GET /*` | The built glasses app; unknown paths without an extension get `index.html`, missing assets 404. `/test.html` is a browser page for trying `/api/ask` |
 
 All JSON responses are sent with `cache-control: no-store`. Errors are `{ error }`.
@@ -105,7 +105,7 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 | 502 | Gemini failed or timed out: each attempt gets 20 s, and a backup request starts after 10 s (an edit takes up to ~8.5 s) or as soon as the first fails |
 | 503 | No Google credentials configured |
 
-`POST /api/recipes/generate` answers the same way, with a 16 KB body limit and 10 requests
+`POST /api/recipes/generate` answers the same way, with a 16 KB body limit and 20 requests
 a minute per IP. The web search gets one attempt of up to 20 s; if it fails, the fallback
 writer gets 18 s per attempt with a backup after 10 s, so the total stays under the app's
 45 s wait. `GET /api/status` includes `search: { location, last }`: how the last web search

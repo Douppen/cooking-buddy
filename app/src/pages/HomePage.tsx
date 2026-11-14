@@ -13,10 +13,18 @@ import {
   VisualState,
 } from '@wearables-ui-toolkit/mrbd';
 import {useNavigate} from 'react-router-dom';
-import {ServerMessageError, generateRecipe} from '../api';
+import {ServerMessageError, askHome, type Turn} from '../api';
 import {useRecipes} from '../RecipesContext';
+import {speak, stopSpeaking} from '../speech';
 
-type Status = {kind: 'idle'} | {kind: 'writing'; dish: string} | {kind: 'failed'; message?: string};
+type Status =
+  | {kind: 'idle'}
+  | {kind: 'thinking'}
+  | {kind: 'answered'; answer: string; suggestions: string[]}
+  | {kind: 'failed'; message?: string};
+
+// The conversation sent back with each request: enough for follow-ups, small enough to send.
+const HISTORY_TURNS = 10;
 
 // The units switch is a label and the toggle, not a list row. Only the toggle is focusable;
 // the toolkit's surface around it only shows while it has focus.
@@ -37,8 +45,10 @@ function stepServings(servings: number, action: 'next' | 'prev'): number {
   return Math.min(MAX_SERVINGS, Math.max(MIN_SERVINGS, next));
 }
 
-// The only screen besides cooking: say a dish ("lasagna") and the AI finds a recipe and
-// cooking starts, for the servings on the row at the bottom. At the top, the most recent
+// The only screen besides cooking. The box takes a dish ("lasagna": the AI finds a recipe and
+// cooking starts, for the servings on the row at the bottom) or food talk ("ideas for a light
+// dinner": a short answer, read aloud, with up to 3 dishes as rows to pinch for the recipe).
+// Follow-ups work ("the second one"): the conversation goes along until a recipe opens. At the top, the most recent
 // recipe, so a cook who left it by accident pinches it to go back. Older recipes stay saved
 // on the device but aren't listed. Between the field and the servings, the units switch.
 export function HomePage() {
@@ -47,11 +57,18 @@ export function HomePage() {
   const [dish, setDish] = useState('');
   const [status, setStatus] = useState<Status>({kind: 'idle'});
   const [servings, setServings] = useState(DEFAULT_SERVINGS);
+  const [history, setHistory] = useState<Turn[]>([]);
   const pending = useRef<AbortController | null>(null);
   const latest = recipes[0];
   const imperial = unitSystem === 'imperial';
 
-  useEffect(() => () => pending.current?.abort(), []);
+  useEffect(
+    () => () => {
+      pending.current?.abort();
+      stopSpeaking();
+    },
+    [],
+  );
 
   const toggleUnits = () => setUnitSystem(imperial ? 'metric' : 'imperial');
 
@@ -68,46 +85,68 @@ export function HomePage() {
     (servings < MAX_SERVINGS ? ' ›' : '');
 
   const send = (text: string) => {
-    const asked = text.trim();
-    if (!asked || status.kind === 'writing') return;
+    const said = text.trim();
+    if (!said || status.kind === 'thinking') return;
     setDish('');
+    stopSpeaking();
+    pending.current?.abort();
     const controller = new AbortController();
     pending.current = controller;
-    setStatus({kind: 'writing', dish: asked});
-    generateRecipe(asked, controller.signal)
-      .then(recipe => {
+    setStatus({kind: 'thinking'});
+    askHome(said, history, controller.signal)
+      .then(reply => {
         if (controller.signal.aborted) return;
+        if (reply.kind === 'answer') {
+          // Suggestions go into the history too, so "the second one" can be resolved.
+          const offered = reply.suggestions.length ? ` (Suggested: ${reply.suggestions.join('; ')})` : '';
+          setHistory(h =>
+            [...h, {role: 'cook' as const, text: said}, {role: 'buddy' as const, text: reply.answer + offered}].slice(
+              -HISTORY_TURNS,
+            ),
+          );
+          setStatus({kind: 'answered', answer: reply.answer, suggestions: reply.suggestions});
+          speak(reply.answer);
+          return;
+        }
         // The recipe keeps its source's servings; the cook's choice is saved next to them.
-        saveRecipe({...recipe, servings});
+        saveRecipe({...reply.recipe, servings});
+        setHistory([]);
+        setStatus({kind: 'idle'});
         // Push, so Back from cooking returns here, with this recipe on top.
-        navigate(`/cook/${recipe.recipe_id}`);
+        navigate(`/cook/${reply.recipe.recipe_id}`);
       })
       .catch(err => {
         if (controller.signal.aborted) return;
-        console.error('Writing the recipe failed:', err);
-        // The server's own words when it gave some ("That doesn't sound like something to cook…").
+        console.error('The home box failed:', err);
+        // The server's own words when it gave some ("Let's keep it to food…").
         setStatus({kind: 'failed', message: err instanceof ServerMessageError ? err.message : undefined});
       });
   };
 
   const message =
-    status.kind === 'writing'
-      ? `Finding a recipe for ${status.dish}…`
-      : status.kind === 'failed'
-        ? (status.message ?? "Couldn't find that recipe. Try again.")
-        : 'What do you want to cook?';
+    status.kind === 'thinking'
+      ? 'Thinking…'
+      : status.kind === 'answered'
+        ? status.answer
+        : status.kind === 'failed'
+          ? (status.message ?? "Couldn't answer that. Try again.")
+          : 'What do you want to cook? Or ask for ideas.';
+  const suggestions = status.kind === 'answered' ? status.suggestions : [];
 
   return (
     <Page headerText="Cooking Buddy" enableSystemBarInset={false}>
       <div className="action-page-shell">
         <VerticalList insetForHeader ariaLabel="Cooking Buddy">
-          {latest && (
+          {latest && suggestions.length === 0 && status.kind !== 'answered' && (
             <ListItem
               title={latest.title}
               subtitle="Back to your recipe"
               onClick={() => navigate(`/cook/${latest.recipe_id}`)}
             />
           )}
+          {suggestions.map(suggestion => (
+            <ListItem key={suggestion} title={suggestion} subtitle="Get the recipe" onClick={() => send(suggestion)} />
+          ))}
         </VerticalList>
         <div className="answer-dock" aria-live="polite">
           <TextView as="p" textStyle={TextStyle.BODY2_EMPHASIZED}>
@@ -117,48 +156,54 @@ export function HomePage() {
         <div className="ask-dock">
           <InputTextView
             text={dish}
-            hint="Say a dish"
+            hint="Say a dish, or ask for ideas"
             onTextChange={setDish}
             onSend={send}
             showActionButton={false}
-            showLoader={status.kind === 'writing'}
-            loadingLabel="Finding a recipe"
-            inputProps={{'aria-label': 'Dish to cook', maxLength: 200}}
+            showLoader={status.kind === 'thinking'}
+            loadingLabel="Thinking"
+            inputProps={{'aria-label': 'Dish to cook, or a food question', maxLength: 200}}
           />
-          <div className="units-row">
-            <TextView as="span" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
-              Imperial units
-            </TextView>
-            <Container
-              role="switch"
-              aria-checked={imperial}
-              aria-label="Imperial units"
-              material={UNITS_TOGGLE_MATERIAL}
-              contentClassName="units-toggle"
-              onClick={toggleUnits}
-            >
-              <Switch checked={imperial} animated />
-            </Container>
-          </div>
-          <Container
-            role="spinbutton"
-            aria-label="Servings"
-            aria-valuemin={MIN_SERVINGS}
-            aria-valuemax={MAX_SERVINGS}
-            aria-valuenow={servings}
-            width="100%"
-            tabIndex={0}
-            onKeyDown={stepServingsOnSwipe}
-          >
-            <div className="servings-box">
-              <TextView as="p" textStyle={TextStyle.BODY2_EMPHASIZED}>
-                {servingsLabel}
-              </TextView>
-              <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
-                Swipe left or right to change
-              </TextView>
-            </div>
-          </Container>
+          {/* While an answer shows, the setup controls step aside so the answer and its
+              dish rows fit the 600×600 display; they're back on the next question. */}
+          {status.kind !== 'answered' && (
+            <>
+              <div className="units-row">
+                <TextView as="span" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
+                  Imperial units
+                </TextView>
+                <Container
+                  role="switch"
+                  aria-checked={imperial}
+                  aria-label="Imperial units"
+                  material={UNITS_TOGGLE_MATERIAL}
+                  contentClassName="units-toggle"
+                  onClick={toggleUnits}
+                >
+                  <Switch checked={imperial} animated />
+                </Container>
+              </div>
+              <Container
+                role="spinbutton"
+                aria-label="Servings"
+                aria-valuemin={MIN_SERVINGS}
+                aria-valuemax={MAX_SERVINGS}
+                aria-valuenow={servings}
+                width="100%"
+                tabIndex={0}
+                onKeyDown={stepServingsOnSwipe}
+              >
+                <div className="servings-box">
+                  <TextView as="p" textStyle={TextStyle.BODY2_EMPHASIZED}>
+                    {servingsLabel}
+                  </TextView>
+                  <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
+                    Swipe left or right to change
+                  </TextView>
+                </div>
+              </Container>
+            </>
+          )}
         </div>
       </div>
     </Page>
