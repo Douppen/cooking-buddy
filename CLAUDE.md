@@ -12,7 +12,7 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
 
 - **Home** (`/`): one field at the bottom for a dish or food talk (`POST
   /api/recipes/generate`). A fast EU call sorts it first. Only a named dish ("lasagna",
-  or "the second one" after ideas) fetches a recipe; a kind of dish ("a simple middle
+  "the second one" after ideas, or "yes, do it" when one dish was offered) fetches a recipe; a kind of dish ("a simple middle
   eastern recipe") is food talk. A dish: the AI finds a real recipe on
   the web, converts it, and cooking starts. Food talk ("ideas for a light dinner", "what can
   I make with rice and eggs?"): a short answer (at most 30 words), read aloud, with up to 3

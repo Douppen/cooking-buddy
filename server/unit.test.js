@@ -319,6 +319,7 @@ test("a dish counts only when the cook or an earlier suggestion named it", () =>
   assert.ok(namedDish("Crème brûlée", said("creme brulee")));
   assert.ok(namedDish("Shakshuka", said("the third one", "Try these. (Suggested: Falafel; Hummus; Shakshuka)")));
   assert.ok(!namedDish("Shakshuka", said("give me a simple midlde eastern recipe")));
+  assert.ok(namedDish("Shakshuka", said("yes, let's do it", "How about shakshuka? (Suggested: Shakshuka)")));
   assert.ok(!namedDish("Pan Seared Chicken Breast", said("chicken recipe")));
   assert.ok(!namedDish("Easy Recipe", said("an easy recipe")));
 });
