@@ -38,6 +38,12 @@ export interface Recipe {
   [field: string]: unknown;
 }
 
+/** The last question and its answer, sent with the next one so "yes, do it" works. */
+export interface Exchange {
+  question: string;
+  answer: string;
+}
+
 export interface Answer {
   answer: string;
   /** The whole updated recipe, when the cook's words changed it ("I don't have eggs"). */
@@ -97,8 +103,9 @@ export async function askQuestion(
   question: string,
   unitSystem: UnitSystem,
   signal: AbortSignal,
+  previous?: Exchange,
 ): Promise<Answer> {
-  const body = await postJson('/api/ask', {recipe, question, unit_system: unitSystem}, signal, ASK_TIMEOUT_MS);
+  const body = await postJson('/api/ask', {recipe, question, unit_system: unitSystem, previous}, signal, ASK_TIMEOUT_MS);
   if (typeof body.answer !== 'string' || !body.answer) throw new Error('No answer');
   return {answer: body.answer, recipe: body.recipe as Recipe | undefined};
 }

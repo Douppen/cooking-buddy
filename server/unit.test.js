@@ -66,6 +66,10 @@ test("ask request validation", () => {
   assert.ok(AskRequestSchema.safeParse({ recipe, question: "How much butter?" }).success);
   assert.ok(AskRequestSchema.safeParse({ recipe, question: "How much butter?", unit_system: "imperial" }).success);
   assert.equal(AskRequestSchema.safeParse({ recipe, question: "x", unit_system: "cups" }).success, false);
+  // The last exchange, so "yes, do it" makes the suggested change.
+  const previous = { question: "Can I swap the butter?", answer: "Olive oil works: use 80 ml." };
+  assert.ok(AskRequestSchema.safeParse({ recipe, question: "yes, do it", previous }).success);
+  assert.equal(AskRequestSchema.safeParse({ recipe, question: "yes", previous: { question: "x" } }).success, false);
   assert.ok(AskRequestSchema.safeParse({ recipe, step_index: 0, question: "How much butter?" }).success);
   assert.equal(AskRequestSchema.safeParse({ recipe, step_index: 99, question: "x" }).success, false);
   assert.equal(AskRequestSchema.safeParse({ recipe, step_index: 0, question: "  " }).success, false);

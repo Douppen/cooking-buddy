@@ -8,7 +8,7 @@ import {
   TextStyle,
   TextView,
 } from '@wearables-ui-toolkit/mrbd';
-import {askQuestion, type Recipe} from './api';
+import {askQuestion, type Exchange, type Recipe} from './api';
 import {
   ANSWER_VISIBLE_MS,
   VIEWS,
@@ -41,6 +41,9 @@ export function Cooking({
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
   const pending = useRef<AbortController | null>(null);
+  // The last answer (not a change), sent with the next question: "yes, do it" then makes the
+  // change it suggested.
+  const lastExchange = useRef<Exchange | undefined>(undefined);
 
   // Swipes arrive as ArrowLeft / ArrowRight from the Neural Band or touchpad. The pager also
   // pages on its own while focus is inside it; this covers the ask field having focus.
@@ -85,9 +88,10 @@ export function Cooking({
     const controller = new AbortController();
     pending.current = controller;
     dispatch({type: 'ask', question: asked});
-    askQuestion(recipe, asked, unitSystem, controller.signal)
+    askQuestion(recipe, asked, unitSystem, controller.signal, lastExchange.current)
       .then(({answer, recipe: changed}) => {
         if (controller.signal.aborted) return;
+        lastExchange.current = changed ? undefined : {question: asked, answer};
         if (changed) onRecipeChange(changed);
         dispatch({type: 'answered', answer, changed: Boolean(changed)});
         // A change (new ingredients and steps, or new servings) only says "Recipe updated".

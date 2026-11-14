@@ -19,7 +19,9 @@ const SYSTEM_INSTRUCTION = [
   "If the recipe doesn't cover the question, use common cooking knowledge.",
   "Take food safety seriously and say clearly when something is unsafe.",
   "",
-  "You can also change the recipe. Change it when the cook tells you to (swap, replace, use, add, remove, skip, leave out, make it vegetarian, less spicy, more garlic) or says they don't have, can't or don't want to use something.",
+  "You can also change the recipe, but only for a command: the cook tells you to change it ('swap the butter for oil', 'use honey instead', 'leave out the carrots', 'add more garlic', 'make it vegetarian', 'make it for 6'), or says they don't have something ('I don't have buttermilk' = replace it).",
+  "A question or a wish is not a command, even when it names a swap: 'can I swap the butter?', 'what can I use instead of butter?', 'can I skip the eggs?', 'do I need eggs?', 'is it OK with oil?', 'I'm watching my blood pressure, can I use something else?'. Answer it in `answer` (the options, which one you'd pick and why, in at most 30 words), suggest the change, and leave the recipe as it is: no `recipe`, `servings` 0, empty `change_summary`.",
+  "If the cook agrees ('yes', 'do it', 'OK, swap it', 'let's do that') to a change you suggested in your previous answer, that is a command: make that change.",
   "When you change it:",
   "- Make the smallest change that does what they asked and keeps the dish working. Prefer a listed substitute.",
   "- Give a swapped-in ingredient its own right amount and unit for what it replaces, not the old number copied (e.g. 100 g butter -> 80 ml olive oil, 1 tbsp fresh thyme -> 1 tsp dried thyme, 2 eggs -> 2 tbsp ground flaxseed and 6 tbsp water). Update its substitutes too. Anything new a step uses goes in the ingredient list too (the water for flax eggs).",
@@ -28,7 +30,6 @@ const SYSTEM_INSTRUCTION = [
   "- Keep base_servings and write amounts for base_servings, like the recipe JSON you are given.",
   "- Return the whole updated recipe in `recipe` and a few words in `change_summary`, e.g. 'Swapped butter for olive oil'. Leave `answer` empty: the app says 'Recipe updated' itself.",
   "When the cook asks to cook for a different number of people or servings ('make it for 6', 'scale it to 2 servings', 'double it' = twice the servings now, 'halve it'), set `servings` to the new number and leave out `recipe` (the app scales the amounts itself), with a few words in `change_summary`, e.g. 'Scaled to 6 servings'. Otherwise set `servings` to 0.",
-  "If they ask whether they need an ingredient: answer, and if the dish works without it, return the recipe with it marked optional.",
   "For ordinary questions, write `answer`, leave out `recipe` and set `change_summary` to an empty string.",
   "",
   RECIPE_WRITING_RULES,
@@ -56,14 +57,14 @@ const RESPONSE_JSON_SCHEMA = {
 /**
  * @param {import("@google/genai").GoogleGenAI} ai  client from gemini.js
  * @param {{ recipe, step_index?: number, question: string, servings?: number,
- *           unit_system?: 'metric' | 'imperial',
+ *           previous?: { question: string, answer: string }, unit_system?: 'metric' | 'imperial',
  *           image?: { mime_type: string, data: string } }} request  a validated /api/ask body
  * @param {AbortSignal} [abortSignal]  cancels the call (used by withBackup in gemini.js)
  * @returns {Promise<{ answer: string, changeSummary: string, draft: object | null, servings: number | null }>}
  *   draft is the changed recipe (see RecipeDraftSchema), or null when nothing changed;
  *   servings is the new number of servings the cook asked for ("make it for 6"), or null
  */
-export async function answerQuestion(ai, { recipe, step_index, question, servings, unit_system, image }, abortSignal) {
+export async function answerQuestion(ai, { recipe, step_index, question, previous, servings, unit_system, image }, abortSignal) {
   // The request's servings, else the cook's choice saved on the recipe, else its own.
   const making = servings ?? recipe.servings ?? recipe.base_servings;
   const parts = [];
@@ -79,6 +80,7 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
         ? "The cook is looking at the whole recipe."
         : `The cook is on step ${step_index + 1} of ${recipe.steps.length}.`,
       `The cook is making ${making} servings now ('double it' means ${making * 2}, 'halve it' ${Math.max(1, Math.round(making / 2))}).`,
+      ...(previous ? ["", `Your previous answer, to "${previous.question}": ${previous.answer}`] : []),
       `The cook says: ${question}`,
     ].join("\n"),
   });

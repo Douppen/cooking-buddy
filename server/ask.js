@@ -9,6 +9,8 @@
 //                Leave it out for a question about the whole recipe (the web app does:
 //                the cook sees all the steps at once).
 //   question     what the cook asked, as text
+//   previous     optional: { question, answer }, the last exchange, so "yes, do it" makes the
+//                change the last answer suggested
 //   servings     optional: servings the cook is making (default recipe.base_servings)
 //   unit_system  optional: "metric" (default) or "imperial", the units the app shows.
 //                Answers use them; the recipe stays metric (a changed one too).
@@ -37,6 +39,7 @@ export const AskRequestSchema = z
     recipe: RecipeSchema,
     step_index: z.number().int().nonnegative().optional(),
     question: z.string().trim().min(1).max(500),
+    previous: z.object({ question: z.string().trim().max(500), answer: z.string().trim().max(600) }).optional(),
     servings: z.number().int().positive().max(100).optional(),
     unit_system: z.enum(["metric", "imperial"]).optional(),
     image: z

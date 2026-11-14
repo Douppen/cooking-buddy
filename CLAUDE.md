@@ -42,14 +42,17 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   field sits under both views. Questions are about **the whole recipe**, not one step: the
   app sends no `step_index` to `/api/ask`.
 - **The answer shows above the ask field** on either view for 15 s and is read aloud.
-- **Saying "I don't have X", "can I skip X" or a command ("swap the butter for oil", "make it
-  vegetarian") edits the recipe**: the AI makes the smallest change, gives swapped-in
+- **A command ("swap the butter for oil", "leave out the carrots", "make it vegetarian") or
+  "I don't have X" edits the recipe**. A question or wish ("can I swap the butter?", "do I
+  need eggs?", "I'm watching my blood pressure, can I…") only gets an answer that suggests
+  the change; "yes, do it" then makes it (the app sends the last question and answer as
+  `previous`). An edit: the AI makes the smallest change, gives swapped-in
   ingredients their own amounts, and rewrites the affected steps (names, amounts, times).
   There's no AI answer then: the app only shows and says "Recipe updated" (~3–8 s; the
   server's `answer` is the change summary, "Swapped butter for olive oil.", for logs and
   clients that want it). "Make it for 6", "double it" or "halve it" changes only the
   recipe's `servings` (1–8, no rewrite, ~1 s), and both lists scale. Both lists show the new recipe; the cook stays on the
-  same view. "Do I need X?" answers, and marks X optional when the dish works without it.
+  same view.
 - **Metric or imperial** (a small "Imperial units" switch on `/` between the dish field and the servings, label and toggle only, no row box; kept on the device): every recipe
   stays stored in metric; the app shows amounts in oz/lb/tsp/tbsp/cups and converts °C,
   g, ml and cm in step text (`app/src/units.ts`). `/api/ask` gets `unit_system` so answers
