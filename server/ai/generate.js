@@ -1,5 +1,5 @@
-// The home screen's box: the cook either wants a recipe ("lasagna", "something quick with
-// chicken") or to talk about food ("what can I make with rice and eggs?", "ideas for a light
+// The home screen's box: the cook either wants a recipe ("lasagna", "chicken tikka
+// masala") or to talk about food ("what can I make with rice and eggs?", "ideas for a light
 // dinner"). Used by POST /api/recipes/generate. Gemini sorts the request in the same call:
 //   recipe    a full Recipe with origin "generated" (the device keeps it, the server doesn't)
 //   answer    a short spoken answer, plus up to 3 dish suggestions the cook can pick
@@ -21,8 +21,8 @@ const SERVINGS_RULE =
 
 const INTENT_RULE = [
   "First decide what the cook wants and set intent:",
-  "- 'recipe': to cook one particular dish now. They name a dish or a food wish to cook ('lasagna', 'something quick with chicken'), or pick one dish from earlier in the conversation ('the second one', 'let's do the curry').",
-  "- 'chat': to talk about food, cooking, ingredients or drinks: ideas or inspiration, what to make with what they have, advice, a cooking question ('what can I make with rice and eggs?', 'ideas for a light dinner', 'can I freeze cooked rice?'). A follow-up that changes or narrows earlier ideas ('something without eggs instead?', 'anything vegetarian?') is 'chat' too: give new ideas, don't pick a recipe for them.",
+  "- 'recipe': only when the cook names one specific dish ('lasagna', 'chicken tikka masala', 'a recipe for banana bread'), or picks one dish from earlier in the conversation ('the second one', 'let's do the curry').",
+  "- 'chat': everything else about food, cooking, ingredients or drinks: ideas or inspiration, what to make with what they have, advice, a cooking question ('what can I make with rice and eggs?', 'ideas for a light dinner', 'can I freeze cooked rice?'). A wish for a kind of dish that doesn't name one is 'chat' too, even when phrased as 'give me' or 'make me' ('give me a simple middle eastern dish', 'something quick with chicken', 'a pasta dish'): suggest dishes, don't pick one for them. So is a follow-up that changes or narrows earlier ideas ('something without eggs instead?', 'anything vegetarian?').",
   "- 'not_food': anything that isn't about food, cooking or drinks, even if phrased as a question: sports, news, weather, people, homework, code, jokes, gibberish, or something that isn't safe to eat. Then leave out everything else.",
   "For 'chat': leave out recipe. Write answer: one to three short sentences, at most 30 words, plain text, no lists or markdown; it is read aloud on smart glasses. suggestions: only the dishes your answer itself suggests (up to 3 short dish names the cook could ask a recipe for, e.g. 'Egg fried rice'); for a question that isn't asking for dishes, an empty list.",
   "Earlier turns of the conversation, if any, come before what the cook says now: use them for follow-ups ('the second one' means the second dish Cooking Buddy suggested).",
@@ -43,7 +43,6 @@ const SEARCH_INSTRUCTION = [
   "Pick one recipe from one page and follow it: its ingredients, amounts and method. Don't mix recipes or invent steps.",
   "Then rewrite it in the format below: amounts in metric, steps short enough for the glasses, a few substitutes.",
   SERVINGS_RULE,
-  "If the wish is vague, find the closest sensible dish.",
   "Search with the dish only (e.g. 'stir fry noodles recipe'), never with a website's name, and don't prefer any particular website: pick whichever result best fits the request.",
   "Set source_site to the recipe website's own domain, e.g. from its page address, never a Google link.",
   RECIPE_WRITING_RULES,
@@ -55,7 +54,6 @@ const WRITE_INSTRUCTION = [
   "For 'recipe': write the classic, widely known home-cooking version of the dish.",
   "Keep it practical: common ingredients, 4-10 steps, nothing fancy unless they ask for it.",
   SERVINGS_RULE,
-  "If the wish is vague, pick the closest sensible dish.",
   RECIPE_WRITING_RULES,
 ].join("\n");
 
