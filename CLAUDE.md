@@ -28,6 +28,10 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   change, rewrites the affected ingredients and steps, and the answer is labelled "RECIPE
   UPDATED" with what changed (~6–8 s). Both lists show the new recipe; the cook stays on the
   same view. "Do I need X?" answers, and marks X optional when the dish works without it.
+- **Metric or imperial** (switch at the bottom of `/`, kept on the device): every recipe
+  stays stored in metric; the app shows amounts in oz/lb/tsp/tbsp/cups and converts °C,
+  g, ml and cm in step text (`app/src/units.ts`). `/api/ask` gets `unit_system` so answers
+  match.
 - **Recipes live on the device** (`localStorage`, see `app/src/recipeStore.ts`), not on the
   server. An edit replaces the saved recipe under the same id.
 
@@ -85,7 +89,7 @@ Build everything so that port is cheap:
   User" role. In production its JSON key arrives base64-encoded as `GOOGLE_CREDENTIALS_B64`
   (base64 because Kamal's env files double backslashes and would break the JSON). Locally,
   point `GOOGLE_APPLICATION_CREDENTIALS` at the JSON key file.
-- **Request:** `{ recipe, question, step_index?, servings?, image? }`, where `recipe` matches
+- **Request:** `{ recipe, question, step_index?, servings?, unit_system?, image? }`, where `recipe` matches
   `RecipeSchema` in `server/models/domain.js` and `image` is `{ mime_type, data }` with
   base64 data (JPEG/PNG/WebP; shrink photos to about 1 megapixel first). Without
   `step_index` the answer covers the whole recipe; the web app never sends one. **Response:**
@@ -130,6 +134,7 @@ config/   Kamal deploy config.   .kamal/secrets reads secrets from the environme
 cd server && npm install && npm start   # :8787, serves app/dist if built
 cd app && npm run dev           # :5173, proxies /api to :8787
 cd app && npm run build         # typecheck + production build
+cd app && npm test              # unit conversion tests (node --test, no browser)
 cd server && npm run smoke      # smoke test; add -- https://cook.simonnars.com for prod
 cd server && npm test           # unit tests: scaling, prompts, AI drafts, validation
 cd server && npm run ask        # real questions through /api/ask (calls Gemini, costs ~nothing)

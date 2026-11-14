@@ -3,10 +3,12 @@ import {useNavigate} from 'react-router-dom';
 import {useRecipes} from '../RecipesContext';
 
 // First screen: the recipes the AI wrote for this cook (most recent first), then
-// "Cook something new". With no recipes yet, that last row is the whole list.
+// "Cook something new". With no recipes yet, that row is the whole list. Last, a switch
+// for imperial units: every recipe's amounts, temperatures and lengths follow it.
 export function RecipeListPage() {
-  const {recipes} = useRecipes();
+  const {recipes, unitSystem, setUnitSystem} = useRecipes();
   const navigate = useNavigate();
+  const imperial = unitSystem === 'imperial';
 
   return (
     <Page headerText="Recipes" enableSystemBarInset={false}>
@@ -20,6 +22,13 @@ export function RecipeListPage() {
           />
         ))}
         <ListItem title="Cook something new" subtitle="Say any dish" onClick={() => navigate('/new')} />
+        <ListItem
+          title="Imperial units"
+          subtitle={imperial ? 'Showing oz, cups, °F' : 'Showing g, ml, °C'}
+          showSwitch
+          checked={imperial}
+          onCheckedChange={checked => setUnitSystem(checked ? 'imperial' : 'metric')}
+        />
       </VerticalList>
     </Page>
   );

@@ -123,8 +123,9 @@ Recipe.
 
 Pure functions with no side effects: `scaleIngredients()` multiplies amounts by
 servings / base servings, and `convertUnitSystem()` turns them into display amounts in
-metric or imperial with practical cooking rounding (oz/lbs for grams, fl oz/cups for
-millilitres, counts unchanged). The answer prompt uses it, and so should a future
+metric or imperial with practical cooking rounding (oz/lb for grams; tsp, tbsp and
+cups in measuring-set fractions for millilitres; counts unchanged), the same rules as
+`app/src/units.ts`. The answer prompt uses it with `unit_system` from `/api/ask`. The answer prompt uses it, and so should a future
 "scale servings" feature.
 
 ### `ai/` (everything that calls Gemini)

@@ -9,6 +9,7 @@
 // updated recipe.
 
 import type {Ingredient} from './api';
+import {inUnitSystem, measureText, type UnitSystem} from './units';
 
 export type View = 'ingredients' | 'steps';
 
@@ -76,12 +77,17 @@ export function answerText(mode: Mode): {label: string; text: string} | null {
 export const ANSWER_VISIBLE_MS = 15_000;
 
 /**
- * One ingredient line, e.g. "250 g Plain flour" or "2 Egg", for the recipe's base servings.
- * Same format and rounding as the server's metric display (server/scaling.js).
+ * One ingredient line for the recipe's base servings, in the cook's unit system:
+ * "250 g Plain flour" or "8.8 oz Plain flour", "2 Egg". Same amounts as the server gives
+ * the AI (server/scaling.js), so answers match what the cook sees.
  */
-export function ingredientLine(ingredient: Ingredient): string {
-  const {base_amount: amount, base_unit: unit, name} = ingredient;
-  const rounded = Number.isInteger(amount) ? amount : Number(amount.toFixed(1));
-  const line = unit === 'unit' ? `${rounded} ${name}` : `${rounded} ${unit} ${name}`;
+export function ingredientLine(ingredient: Ingredient, system: UnitSystem): string {
+  const amount = measureText(ingredient.base_amount, ingredient.base_unit, system);
+  const line = `${amount} ${inUnitSystem(ingredient.name, system)}`;
   return ingredient.optional ? `${line} (optional)` : line;
+}
+
+/** Step text in the cook's unit system: "Bake at 200°C" becomes "Bake at 400°F" in imperial. */
+export function stepText(text: string, system: UnitSystem): string {
+  return inUnitSystem(text, system);
 }

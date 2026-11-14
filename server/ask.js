@@ -10,6 +10,8 @@
 //                the cook sees all the steps at once).
 //   question     what the cook asked, as text
 //   servings     optional: servings the cook is making (default recipe.base_servings)
+//   unit_system  optional: "metric" (default) or "imperial", the units the app shows.
+//                Answers use them; the recipe stays metric (a changed one too).
 //   image        optional: { mime_type: "image/jpeg" | "image/png" | "image/webp", data: base64 }
 // Response: { answer, model, ms } plus, when the recipe changed, { recipe, change_summary }:
 //   the whole updated recipe (same recipe_id, change_summary appended to edits).
@@ -34,6 +36,7 @@ export const AskRequestSchema = z
     step_index: z.number().int().nonnegative().optional(),
     question: z.string().trim().min(1).max(500),
     servings: z.number().int().positive().max(100).optional(),
+    unit_system: z.enum(["metric", "imperial"]).optional(),
     image: z
       .object({
         mime_type: z.enum(["image/jpeg", "image/png", "image/webp"]),

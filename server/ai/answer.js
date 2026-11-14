@@ -32,6 +32,13 @@ const SYSTEM_INSTRUCTION = [
   RECIPE_WRITING_RULES,
 ].join("\n");
 
+// The app shows the ingredient list above in imperial and converts temperatures and lengths
+// in the step text (200°C shows as 400°F, oven temperatures to the nearest 25°F).
+const IMPERIAL_NOTE =
+  "The cook's display uses imperial units: in `answer`, give amounts as in the ingredient list above " +
+  "(oz, lb, cups, tbsp, tsp), temperatures in °F (oven temperatures to the nearest 25°F) and lengths in inches. " +
+  "The recipe JSON stays metric: write any changed recipe in metric as usual.";
+
 const RESPONSE_JSON_SCHEMA = {
   type: "object",
   properties: {
@@ -46,17 +53,18 @@ const RESPONSE_JSON_SCHEMA = {
 /**
  * @param {import("@google/genai").GoogleGenAI} ai  client from gemini.js
  * @param {{ recipe, step_index?: number, question: string, servings?: number,
+ *           unit_system?: 'metric' | 'imperial',
  *           image?: { mime_type: string, data: string } }} request  a validated /api/ask body
  * @param {AbortSignal} [abortSignal]  cancels the call (used by withBackup in gemini.js)
  * @returns {Promise<{ answer: string, changeSummary: string, draft: object | null }>}
  *   draft is the changed recipe (see RecipeDraftSchema), or null when nothing changed
  */
-export async function answerQuestion(ai, { recipe, step_index, question, servings, image }, abortSignal) {
+export async function answerQuestion(ai, { recipe, step_index, question, servings, unit_system, image }, abortSignal) {
   const parts = [];
   if (image) parts.push({ inlineData: { mimeType: image.mime_type, data: image.data } });
   parts.push({
     text: [
-      recipeContext(recipe, step_index, servings ?? recipe.base_servings),
+      recipeContext(recipe, step_index, servings ?? recipe.base_servings, unit_system),
       "",
       `Recipe JSON (amounts for base_servings ${recipe.base_servings}):`,
       JSON.stringify(recipeToDraft(recipe)),
@@ -97,11 +105,12 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
   return { answer, changeSummary, draft: parsed.recipe && changeSummary ? parsed.recipe : null };
 }
 
-// The recipe as plain text: amounts scaled to `servings`, substitutes, and the current step
-// marked when there is one (stepIndex undefined = a question about the whole recipe).
-export function recipeContext(recipe, stepIndex, servings) {
+// The recipe as plain text: amounts scaled to `servings` in the units the cook sees,
+// substitutes, and the current step marked when there is one (stepIndex undefined = a
+// question about the whole recipe).
+export function recipeContext(recipe, stepIndex, servings, unitSystem = "metric") {
   const lines = [`Recipe: ${recipe.title}, making ${servings} servings.`, "Ingredients:"];
-  const scaled = convertUnitSystem(scaleIngredients(recipe.ingredients, servings / recipe.base_servings), "metric");
+  const scaled = convertUnitSystem(scaleIngredients(recipe.ingredients, servings / recipe.base_servings), unitSystem);
   recipe.ingredients.forEach((ing, i) => {
     const optional = ing.optional ? " (optional)" : "";
     const subs = ing.substitutes.length ? ` (substitutes: ${ing.substitutes.join("; ")})` : "";
@@ -113,5 +122,6 @@ export function recipeContext(recipe, stepIndex, servings) {
     lines.push(`${i + 1}. ${step.title}: ${step.instruction}${current}`);
   });
   if (recipe.edits?.length) lines.push(`Changes already made for this cook: ${recipe.edits.join("; ")}.`);
+  if (unitSystem === "imperial") lines.push(IMPERIAL_NOTE);
   return lines.join("\n");
 }

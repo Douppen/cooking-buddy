@@ -9,13 +9,30 @@ import {
   TextView,
 } from '@wearables-ui-toolkit/mrbd';
 import {askQuestion, type Recipe} from './api';
-import {ANSWER_VISIBLE_MS, VIEWS, answerText, cookingReducer, ingredientLine, initialCookingState} from './cookingState';
+import {
+  ANSWER_VISIBLE_MS,
+  VIEWS,
+  answerText,
+  cookingReducer,
+  ingredientLine,
+  initialCookingState,
+  stepText,
+} from './cookingState';
 import {speak, stopSpeaking} from './speech';
+import type {UnitSystem} from './units';
 
 // Cooking one recipe: the ingredients, and one swipe right, all the steps. Below both, a
 // field for questions or changes ("I don't have eggs"); the answer shows above it. A change
-// comes back as a new recipe for onRecipeChange.
-export function Cooking({recipe, onRecipeChange}: {recipe: Recipe; onRecipeChange: (recipe: Recipe) => void}) {
+// comes back as a new recipe for onRecipeChange. Amounts show in the cook's unit system.
+export function Cooking({
+  recipe,
+  unitSystem,
+  onRecipeChange,
+}: {
+  recipe: Recipe;
+  unitSystem: UnitSystem;
+  onRecipeChange: (recipe: Recipe) => void;
+}) {
   const [state, dispatch] = useReducer(cookingReducer, initialCookingState);
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
@@ -64,7 +81,7 @@ export function Cooking({recipe, onRecipeChange}: {recipe: Recipe; onRecipeChang
     const controller = new AbortController();
     pending.current = controller;
     dispatch({type: 'ask', question: asked});
-    askQuestion(recipe, asked, controller.signal)
+    askQuestion(recipe, asked, unitSystem, controller.signal)
       .then(({answer, recipe: changed}) => {
         if (controller.signal.aborted) return;
         if (changed) onRecipeChange(changed);
@@ -107,7 +124,7 @@ export function Cooking({recipe, onRecipeChange}: {recipe: Recipe; onRecipeChang
                 {recipe.ingredients.map(ingredient => (
                   <li key={ingredient.id}>
                     <TextView as="p" textStyle={TextStyle.BODY2}>
-                      {ingredientLine(ingredient)}
+                      {ingredientLine(ingredient, unitSystem)}
                     </TextView>
                   </li>
                 ))}
@@ -128,10 +145,10 @@ export function Cooking({recipe, onRecipeChange}: {recipe: Recipe; onRecipeChang
                 {recipe.steps.map((step, i) => (
                   <li key={i}>
                     <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
-                      {`${i + 1} · ${step.title}`}
+                      {`${i + 1} · ${stepText(step.title, unitSystem)}`}
                     </TextView>
                     <TextView as="p" textStyle={TextStyle.BODY2}>
-                      {step.instruction}
+                      {stepText(step.instruction, unitSystem)}
                     </TextView>
                   </li>
                 ))}

@@ -2,6 +2,8 @@
 // writes them (/api/recipes/generate) and each question sends the whole recipe back to
 // /api/ask unchanged, so the server sees exactly what the cook follows, edits included.
 
+import type {UnitSystem} from './units';
+
 export interface Ingredient {
   id: string;
   name: string;
@@ -50,9 +52,17 @@ export async function generateRecipe(request: string, signal: AbortSignal): Prom
   return body.recipe as Recipe;
 }
 
-/** Ask about the whole recipe (no step_index: the cook sees all the steps at once). */
-export async function askQuestion(recipe: Recipe, question: string, signal: AbortSignal): Promise<Answer> {
-  const body = await postJson('/api/ask', {recipe, question}, signal, ASK_TIMEOUT_MS);
+/**
+ * Ask about the whole recipe (no step_index: the cook sees all the steps at once). The
+ * answer gives amounts in the cook's unit system; the recipe itself stays metric.
+ */
+export async function askQuestion(
+  recipe: Recipe,
+  question: string,
+  unitSystem: UnitSystem,
+  signal: AbortSignal,
+): Promise<Answer> {
+  const body = await postJson('/api/ask', {recipe, question, unit_system: unitSystem}, signal, ASK_TIMEOUT_MS);
   if (typeof body.answer !== 'string' || !body.answer) throw new Error('No answer');
   return {answer: body.answer, recipe: body.recipe as Recipe | undefined};
 }

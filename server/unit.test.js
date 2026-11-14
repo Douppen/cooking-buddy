@@ -25,7 +25,20 @@ test("scaling and unit conversion", () => {
   const egg = recipe.ingredients.find((i) => i.id === "egg");
   assert.equal(convertUnitSystem(scaleIngredients([egg], 1), "metric")[0].display, "2 Egg");
   const milk = recipe.ingredients.find((i) => i.id === "buttermilk");
-  assert.equal(convertUnitSystem(scaleIngredients([milk], 1), "imperial")[0].display, "2.03 cups Buttermilk");
+  assert.equal(convertUnitSystem(scaleIngredients([milk], 1), "imperial")[0].display, "2 cups Buttermilk");
+});
+
+// Same table as app/src/units.test.ts: the app shows these, the AI gets the same.
+test("imperial amounts match the app", () => {
+  const shown = (amount, base_unit) =>
+    convertUnitSystem([{ id: "x", name: "X", amount, base_unit }], "imperial")[0].display.replace(/ X$/, "");
+  const cases = [
+    [250, "g", "8.8 oz"], [300, "g", "11 oz"], [1, "g", "0.1 oz"], [450, "g", "1 lb"], [1000, "g", "2.2 lb"],
+    [1, "ml", "¼ tsp"], [5, "ml", "1 tsp"], [10, "ml", "2 tsp"], [15, "ml", "1 tbsp"], [30, "ml", "2 tbsp"],
+    [60, "ml", "¼ cup"], [80, "ml", "⅓ cup"], [150, "ml", "⅔ cup"], [250, "ml", "1 cup"],
+    [300, "ml", "1¼ cups"], [480, "ml", "2 cups"], [1000, "ml", "4¼ cups"], [2, "unit", "2"],
+  ];
+  for (const [amount, unit, expected] of cases) assert.equal(shown(amount, unit), expected, `${amount} ${unit}`);
 });
 
 test("answer prompt scales amounts, all steps, and a current step only when given", () => {
@@ -40,8 +53,17 @@ test("answer prompt scales amounts, all steps, and a current step only when give
   assert.match(onStep, /^3\. .*<- CURRENT STEP$/m);
 });
 
+test("answer prompt in imperial units", () => {
+  const imperial = recipeContext(recipe, undefined, 4, "imperial");
+  assert.match(imperial, /- 2 cups Buttermilk/);
+  assert.match(imperial, /imperial units/);
+  assert.doesNotMatch(recipeContext(recipe, undefined, 4), /imperial/);
+});
+
 test("ask request validation", () => {
   assert.ok(AskRequestSchema.safeParse({ recipe, question: "How much butter?" }).success);
+  assert.ok(AskRequestSchema.safeParse({ recipe, question: "How much butter?", unit_system: "imperial" }).success);
+  assert.equal(AskRequestSchema.safeParse({ recipe, question: "x", unit_system: "cups" }).success, false);
   assert.ok(AskRequestSchema.safeParse({ recipe, step_index: 0, question: "How much butter?" }).success);
   assert.equal(AskRequestSchema.safeParse({ recipe, step_index: 99, question: "x" }).success, false);
   assert.equal(AskRequestSchema.safeParse({ recipe, step_index: 0, question: "  " }).success, false);

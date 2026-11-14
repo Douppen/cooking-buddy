@@ -7,14 +7,14 @@ import {useRecipes} from '../RecipesContext';
 // draws a chip over the content): the two views, ingredients and steps, use the whole display.
 export function CookPage() {
   const {id = ''} = useParams();
-  const {recipes, saveRecipe} = useRecipes();
+  const {recipes, saveRecipe, unitSystem} = useRecipes();
   const recipe = recipes.find(r => r.recipe_id === id);
 
   // An edit keeps the recipe id, so the cooking screen stays mounted and keeps its view.
   if (recipe) {
     return (
       <Page showHeader={false} enableSystemBarInset={false}>
-        <Cooking key={recipe.recipe_id} recipe={recipe} onRecipeChange={saveRecipe} />
+        <Cooking key={recipe.recipe_id} recipe={recipe} unitSystem={unitSystem} onRecipeChange={saveRecipe} />
       </Page>
     );
   }

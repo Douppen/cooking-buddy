@@ -1,11 +1,14 @@
 // The cook's recipes: ones the AI wrote ("carbonara for 4"), with any voice edits ("I
 // don't have buttermilk") saved over them. Kept in localStorage, so they survive reloads;
 // the server doesn't store them. Storage can be unavailable or cleared at any time, so
-// every access is guarded and the app works without it.
+// every access is guarded and the app works without it. The cook's metric/imperial choice
+// is kept here too.
 
 import type {Recipe} from './api';
+import type {UnitSystem} from './units';
 
 const KEY = 'cooking-buddy:recipes:v1';
+const UNITS_KEY = 'cooking-buddy:units:v1';
 const MAX_SAVED = 20;
 
 type Stored = Record<string, {recipe: Recipe; savedAt: number}>;
@@ -39,4 +42,21 @@ export function saveRecipe(recipe: Recipe): Recipe[] {
     // Full or blocked storage: the recipe still works for this session.
   }
   return kept.map(([, entry]) => entry.recipe);
+}
+
+/** The unit system the cook picked on the Recipes screen; metric until they switch. */
+export function loadUnitSystem(): UnitSystem {
+  try {
+    return window.localStorage.getItem(UNITS_KEY) === 'imperial' ? 'imperial' : 'metric';
+  } catch {
+    return 'metric';
+  }
+}
+
+export function saveUnitSystem(system: UnitSystem): void {
+  try {
+    window.localStorage.setItem(UNITS_KEY, system);
+  } catch {
+    // Blocked storage: the choice still holds for this session.
+  }
 }
