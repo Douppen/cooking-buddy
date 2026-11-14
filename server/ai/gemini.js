@@ -10,21 +10,24 @@ import { GoogleGenAI } from "@google/genai";
 
 export const MODEL = process.env.GEMINI_MODEL ?? "gemini-4-hydrogen";
 export const LOCATION = process.env.GEMINI_LOCATION ?? "eu";
-const REQUEST_TIMEOUT_MS = 20_000;
+// Finding recipes on the web uses Gemini's Google Search tool, which Google doesn't keep in
+// the EU on any endpoint, so it runs on the global endpoint (see CLAUDE.md, "AI").
+export const SEARCH_LOCATION = process.env.GEMINI_SEARCH_LOCATION ?? "global";
+const REQUEST_TIMEOUT_MS = 30_000;
 
-let client;
+const clients = new Map(); // location -> client, or null without credentials
 
-// The client, or null when no credentials are configured. Created on first use.
-export function getClient() {
-  if (client !== undefined) return client;
-  client = null;
+// The client for `location`, or null when no credentials are configured. Created on first use.
+export function getClient(location = LOCATION) {
+  if (clients.has(location)) return clients.get(location);
+  let client = null;
   try {
     const credentials = loadCredentials();
     if (credentials) {
       client = new GoogleGenAI({
         vertexai: true,
         project: credentials.project_id,
-        location: LOCATION,
+        location,
         googleAuthOptions: { credentials },
         httpOptions: { timeout: REQUEST_TIMEOUT_MS },
       });
@@ -34,6 +37,7 @@ export function getClient() {
   } catch (err) {
     console.error("ai: could not load Google credentials:", err.message);
   }
+  clients.set(location, client);
   return client;
 }
 

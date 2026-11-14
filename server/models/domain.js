@@ -58,6 +58,11 @@ export const RecipeSchema = z.object({
     .array(z.string())
     .default([])
     .describe("Short notes on changes the AI made for this cook, oldest first"),
+  source: z
+    .object({ name: z.string(), url: z.string().url() })
+    .nullable()
+    .default(null)
+    .describe("The web page the recipe was found on (from Google Search), or null"),
 });
 
 // What the AI writes when it creates or edits a recipe: the recipe without the fields the
@@ -81,7 +86,7 @@ export const RecipeDraftSchema = z.object({
  * rename what it didn't touch), and sets the server-owned fields. Throws if the result
  * isn't a valid Recipe.
  */
-export function toRecipe(draft, { recipe_id, origin, edits, previous }) {
+export function toRecipe(draft, { recipe_id, origin, edits, previous, source = null }) {
   const parsed = inCelsius(RecipeDraftSchema.parse(draft));
   const previousIds = new Map((previous?.ingredients ?? []).map((ing) => [ing.name.toLowerCase(), ing.id]));
   const used = new Set();
@@ -95,7 +100,7 @@ export function toRecipe(draft, { recipe_id, origin, edits, previous }) {
     return { id, ...ing };
   });
   const steps = parsed.steps.map((step, index) => ({ index, ...step }));
-  return RecipeSchema.parse({ ...parsed, recipe_id, ingredients, steps, origin, edits });
+  return RecipeSchema.parse({ ...parsed, recipe_id, ingredients, steps, origin, edits, source });
 }
 
 // Recipes keep temperatures in °C (the app converts for imperial). The AI is told so, but

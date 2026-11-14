@@ -13,8 +13,8 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
 - **First, pick a recipe** (`/`): a "Recipes" list of the recipes the AI wrote for this cook,
   most recent first, then a last row, **"Cook something new"**. There are no built-in
   recipes. Pinch opens a row; the system Back gesture returns to the list.
-- **Cook something new** (`/new`): the cook says a dish ("carbonara for 4") and the AI writes
-  a classic recipe (`POST /api/recipes/generate`, ~6–8 s), then cooking starts.
+- **Cook something new** (`/new`): the cook says a dish ("carbonara for 4") and the AI finds
+  a real recipe on the web and converts it (`POST /api/recipes/generate`), then cooking starts.
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
   steps** in one list; swiping right again does nothing. **Swipe left** (`prev`) goes back
@@ -79,10 +79,16 @@ Build everything so that port is cheap:
 
 ## AI (`/api/ask`, `/api/recipes/generate`)
 
-- **Gemini on Google Cloud, EU only.** Model `gemini-4-hydrogen` (fallback:
-  `gemini-3.8-flash`, set `GEMINI_MODEL`), location `eu` (the EU multi-region endpoint
-  `aiplatform.eu.rep.googleapis.com`), reasoning level `LOW` for speed. Project
+- **Gemini on Google Cloud, EU only, except recipe search.** Model `gemini-4-hydrogen`
+  (fallback: `gemini-3.8-flash`, set `GEMINI_MODEL`), location `eu` (the EU multi-region
+  endpoint `aiplatform.eu.rep.googleapis.com`), reasoning level `LOW` for speed. Project
   `junction-2026-514714`.
+- **The exception, on purpose:** finding a recipe on the web uses Gemini's Google Search
+  tool, which Google keeps out of its data residency commitment on every endpoint
+  ("Supported capabilities" in the Agent Platform docs) and logs for up to 3 days. This is a
+  hackathon project, not production, so we accept that for recipe search only: it runs on
+  the `global` endpoint (`GEMINI_SEARCH_LOCATION`). `/api/ask` and the fallback recipe
+  writer stay in the EU. Don't "fix" this back without a replacement for web search.
 - **Auth is a service account key, not an API key.** Agent Platform API keys only reach the
   global endpoint, so they can't keep processing in the EU. The service account is
   `cooking-buddy@junction-2026-514714.iam.gserviceaccount.com` with the "Agent Platform
@@ -96,8 +102,12 @@ Build everything so that port is cheap:
   `{ answer, model, ms }`, plus `{ recipe, change_summary }` when the cook's words changed
   the recipe. Answers are 1–2 sentences, plain text, meant to be shown and spoken.
 - **New recipes:** `POST /api/recipes/generate` with `{ request: "carbonara for 4" }` returns
-  `{ recipe, model, ms }`: a classic recipe with `origin: "generated"` and a `gen-…` id. The
-  server doesn't store it; the device does and sends it to `/api/ask` like any recipe.
+  `{ recipe, found_online, model, ms }`. Gemini searches the web, picks one well-reviewed
+  recipe and rewrites it in our format; `recipe.source` is `{ name, url }` of that page,
+  taken from Google's search results (the URL is a Google redirect link). If the search
+  fails, Gemini writes the classic version itself (`found_online: false`, `source: null`).
+  `GET /api/status` shows how the last search went. The server stores nothing; the device
+  keeps the recipe and sends it to `/api/ask` like any recipe. Edits keep the source.
 - **Recipe format for the AI:** Gemini writes a "draft" (`RecipeDraftSchema`: no ids or step
   indexes) as structured JSON (`server/ai/recipeFormat.js`), and `toRecipe()` in
   `models/domain.js` turns it into a valid `Recipe`. Ingredients have `optional`; recipes

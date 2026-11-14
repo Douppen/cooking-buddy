@@ -6,6 +6,7 @@ import { convertUnitSystem, scaleIngredients, toCelsiusInText } from "./scaling.
 import { RecipeSchema, toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
 import { GenerateRequestSchema } from "./generate.js";
+import { pickSource } from "./ai/generate.js";
 import { recipeContext } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
 
@@ -128,6 +129,23 @@ test("AI recipes come out in Celsius", () => {
   assert.equal(made.steps[0].instruction, "Bake at 190°C for 10 min.");
   assert.deepEqual(made.steps[0].visual_cues, ["Golden at 190°C"]);
   assert.equal(made.ingredients[0].name, "Water, warmed to 43°C");
+});
+
+test("the source of a web recipe comes from Google's search results", () => {
+  const chunks = [
+    { web: { uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/a", title: "allrecipes.com" } },
+    { web: { uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/b", title: "bbcgoodfood.com" } },
+  ];
+  assert.deepEqual(pickSource(chunks, "www.BBCGoodFood.com"), {
+    name: "bbcgoodfood.com",
+    url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/b",
+  });
+  assert.equal(pickSource(chunks, "seriouseats.com").name, "allrecipes.com"); // unknown site: first page
+  assert.equal(pickSource([], "bbcgoodfood.com"), null); // no search happened
+  // The source stays on the recipe through toRecipe (and so through edits).
+  const source = pickSource(chunks, "bbcgoodfood.com");
+  const kept = toRecipe(recipeToDraft(recipe), { recipe_id: "gen-x", origin: "generated", edits: ["x"], source });
+  assert.deepEqual(kept.source, source);
 });
 
 test("generate request validation", () => {

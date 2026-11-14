@@ -52,7 +52,7 @@ server/
 ├── ai/                # Everything that calls Gemini
 │   ├── gemini.js      # Shared client: credentials, EU location, warm-up, /api/status info
 │   ├── answer.js      # /api/ask: answer, or edit the recipe when the cook asks
-│   ├── generate.js    # /api/recipes/generate: write a classic recipe for a named dish
+│   ├── generate.js    # /api/recipes/generate: find a recipe on the web (fallback: write one)
 │   └── recipeFormat.js # Recipe JSON schema and writing rules shared by both
 ├── models/
 │   └── domain.js      # Recipe, ingredient and step schemas (Zod), AI drafts, toRecipe()
@@ -77,7 +77,7 @@ server/
 | `GET /up` | Health check for Kamal and Docker, answers `OK` |
 | `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up } }`. Free: never calls the model |
 | `POST /api/ask` | `{ recipe, question, step_index?, servings?, image? }` → `{ answer, model, ms }`, plus `{ recipe, change_summary }` when it changed the recipe |
-| `POST /api/recipes/generate` | `{ request: "carbonara for 4", servings? }` → `{ recipe, model, ms }`: a classic recipe with `origin: "generated"`. Not stored on the server. 10 requests per minute per IP |
+| `POST /api/recipes/generate` | `{ request: "carbonara for 4", servings? }` → `{ recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name, url }` of the page. If the search fails, a classic recipe Gemini writes itself (`found_online: false`, `source: null`). Not stored on the server. 10 requests per minute per IP |
 | `GET /*` | The built glasses app; unknown paths without an extension get `index.html`, missing assets 404. `/test.html` is a browser page for trying `/api/ask` |
 
 All JSON responses are sent with `cache-control: no-store`. Errors are `{ error }`.
@@ -103,8 +103,11 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 | 502 | Gemini failed or timed out: each attempt gets 20 s, and a backup request starts after 10 s (an edit takes up to ~8.5 s) or as soon as the first fails |
 | 503 | No Google credentials configured |
 
-`POST /api/recipes/generate` answers the same way, with a 16 KB body limit, 10 requests
-a minute per IP, and a backup request after 15 s (30 s per attempt).
+`POST /api/recipes/generate` answers the same way, with a 16 KB body limit and 10 requests
+a minute per IP. The web search gets one attempt of up to 20 s; if it fails, the fallback
+writer gets 18 s per attempt with a backup after 10 s, so the total stays under the app's
+45 s wait. `GET /api/status` includes `search: { location, last }`: how the last web search
+went (`ok`, `ms`, `source`, or `error`).
 
 ---
 
@@ -157,8 +160,12 @@ text.
   `change_summary` and the whole updated recipe as a draft. `ask.js` turns that draft into a
   Recipe with `toRecipe()`, keeping the recipe id and the ids of unchanged ingredients. It
   logs the time and token counts of every answer, so `kamal app logs` shows latency.
-- **`generate.js`**: `generateRecipe()` asks Gemini for the classic version of a named dish
-  as a draft and returns a Recipe with `origin: "generated"` and a `gen-<slug>-<random>` id.
+- **`generate.js`**: `findRecipeOnline()` gives Gemini its Google Search tool (on the
+  `global` endpoint: search isn't EU-only, see `CLAUDE.md`) and asks it to follow one real,
+  well-reviewed recipe and rewrite it as a draft. `pickSource()` takes the page from Google's
+  search results, never from the model's text, so the link is real. `writeRecipe()` is the
+  fallback: the classic version from Gemini's own knowledge, in the EU. Both return a Recipe
+  with `origin: "generated"` and a `gen-<slug>-<random>` id.
 - **`recipeFormat.js`**: the JSON Schema Gemini writes recipes in, the shared writing rules
   (metric units, at most 15 words a step, timers), and `recipeToDraft()`. No
   `minItems`/`maxItems`: with them on both lists Gemini rejects the schema.
