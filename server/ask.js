@@ -10,31 +10,16 @@
 //   image        optional: { mime_type: "image/jpeg" | "image/png" | "image/webp", data: base64 }
 // Response: { answer, model, ms }
 //
-// Gemini runs on Google Cloud in the EU multi-region (location "eu"), authenticated with a
-// service account key: GOOGLE_CREDENTIALS_B64 (base64 of the JSON key; base64 because Kamal's
-// env files would mangle the key's backslashes) or, for local dev, GOOGLE_APPLICATION_CREDENTIALS
-// (path to the JSON key file).
+// The prompt lives in ai/answer.js, the Gemini client in ai/gemini.js.
 
-import { readFileSync } from "node:fs";
-import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
+import { answerQuestion } from "./ai/answer.js";
+import { MODEL, getClient } from "./ai/gemini.js";
 import { RecipeSchema } from "./models/domain.js";
+import { clientIp, createRateLimiter, readBody, sendJson } from "./http.js";
 
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-4-hydrogen";
-const LOCATION = process.env.GEMINI_LOCATION ?? "eu";
-const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_BODY_BYTES = 3 * 1024 * 1024; // room for a ~2 MB photo as base64
-const RATE_LIMIT_PER_MINUTE = 30; // per client IP: the endpoint is public and every call costs money
-
-const SYSTEM_INSTRUCTION = [
-  "You are Cooking Buddy, helping someone who is cooking at home.",
-  "They wear smart glasses: your answer appears on a small display and is read aloud.",
-  "Answer in one or two short sentences, at most 30 words. Plain text only: no markdown, lists or emoji.",
-  "Use the recipe below and focus on the current step. Give amounts for the servings stated, with units.",
-  "If a photo is attached, it shows what the cook is looking at right now.",
-  "If the recipe doesn't cover the question, use common cooking knowledge.",
-  "Take food safety seriously and say clearly when something is unsafe.",
-].join("\n");
+const allowRequest = createRateLimiter(30); // per client IP: the endpoint is public and every call costs money
 
 export const AskRequestSchema = z
   .object({
@@ -99,177 +84,10 @@ export async function handleAsk(req, res) {
 
   const started = performance.now();
   try {
-    const answer = await askGemini(ai, parsed.data);
+    const answer = await answerQuestion(ai, parsed.data);
     sendJson(res, 200, { answer, model: MODEL, ms: Math.round(performance.now() - started) });
   } catch (err) {
     console.error(`ask failed after ${Math.round(performance.now() - started)} ms:`, err?.message ?? err);
     sendJson(res, 502, { error: "The AI didn't answer. Try again." });
   }
 }
-
-async function askGemini(ai, { recipe, step_index, question, servings, image }) {
-  const parts = [];
-  if (image) parts.push({ inlineData: { mimeType: image.mime_type, data: image.data } });
-  parts.push({
-    text: [
-      recipeContext(recipe, step_index, servings ?? recipe.base_servings),
-      "",
-      `The cook is on step ${step_index + 1} of ${recipe.steps.length}.`,
-      `Question: ${question}`,
-    ].join("\n"),
-  });
-
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: [{ role: "user", parts }],
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      thinkingConfig: { thinkingLevel: "LOW" }, // quick answers matter more than deep reasoning
-      maxOutputTokens: 1024,
-    },
-  });
-  const answer = response.text?.trim();
-  if (!answer) {
-    throw new Error(`empty answer (finish reason: ${response.candidates?.[0]?.finishReason ?? "unknown"})`);
-  }
-  return answer;
-}
-
-function recipeContext(recipe, stepIndex, servings) {
-  const factor = servings / recipe.base_servings;
-  const lines = [`Recipe: ${recipe.title}, making ${servings} servings.`, "Ingredients:"];
-  for (const ing of recipe.ingredients) {
-    const unit = ing.base_unit === "unit" ? "" : ` ${ing.base_unit}`;
-    const subs = ing.substitutes.length ? ` (substitutes: ${ing.substitutes.join("; ")})` : "";
-    lines.push(`- ${round(ing.base_amount * factor)}${unit} ${ing.name}${subs}`);
-  }
-  lines.push("Steps:");
-  recipe.steps.forEach((step, i) => {
-    const current = i === stepIndex ? "  <- CURRENT STEP" : "";
-    lines.push(`${i + 1}. ${step.title}: ${step.instruction}${current}`);
-  });
-  return lines.join("\n");
-}
-
-function round(n) {
-  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(1)));
-}
-
-// --- Gemini client, created on first use --------------------------------------------------
-
-let client;
-
-function getClient() {
-  if (client !== undefined) return client;
-  client = null;
-  try {
-    const credentials = loadCredentials();
-    if (credentials) {
-      client = new GoogleGenAI({
-        vertexai: true,
-        project: credentials.project_id,
-        location: LOCATION,
-        googleAuthOptions: { credentials },
-        httpOptions: { timeout: REQUEST_TIMEOUT_MS },
-      });
-    } else {
-      console.warn("ask: no Google credentials set; /api/ask will answer 503");
-    }
-  } catch (err) {
-    console.error("ask: could not load Google credentials:", err.message);
-  }
-  return client;
-}
-
-// The first Gemini call has to fetch a Google access token and open a connection, which
-// made the first question take ~8 s instead of ~2 s. Warm both up at startup and every
-// 15 minutes with countTokens, which is free.
-let lastWarmUp = null; // { ok, ms, at, error? }
-
-export function warmUpAi() {
-  const ai = getClient();
-  if (!ai) return;
-  const warm = async () => {
-    const started = performance.now();
-    try {
-      await ai.models.countTokens({ model: MODEL, contents: "warm up" });
-      const ms = Math.round(performance.now() - started);
-      lastWarmUp = { ok: true, ms, at: new Date().toISOString() };
-      console.log(`ask: ${MODEL} in ${LOCATION} warmed up in ${ms} ms`);
-    } catch (err) {
-      const ms = Math.round(performance.now() - started);
-      lastWarmUp = { ok: false, ms, at: new Date().toISOString(), error: String(err?.message ?? err).slice(0, 300) };
-      console.error("ask: warm-up failed:", err?.message ?? err);
-    }
-  };
-  warm();
-  setInterval(warm, 15 * 60_000).unref();
-}
-
-// For GET /api/status: is the AI configured, and did the last warm-up reach Gemini?
-// The warm-up uses countTokens, so checking this costs nothing.
-export function aiStatus() {
-  return { configured: getClient() !== null, model: MODEL, location: LOCATION, last_warm_up: lastWarmUp };
-}
-
-function loadCredentials() {
-  if (process.env.GOOGLE_CREDENTIALS_B64) {
-    return JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS_B64, "base64").toString("utf8"));
-  }
-  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    return JSON.parse(readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, "utf8"));
-  }
-  return null;
-}
-
-// --- HTTP helpers ------------------------------------------------------------------------
-
-function readBody(req, limit) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let size = 0;
-    req.on("data", (chunk) => {
-      size += chunk.length;
-      if (size <= limit) chunks.push(chunk);
-    });
-    req.on("end", () => {
-      if (size > limit) reject(Object.assign(new Error("Request is too large"), { status: 413 }));
-      else resolve(Buffer.concat(chunks).toString("utf8"));
-    });
-    req.on("error", reject);
-  });
-}
-
-export function sendJson(res, status, body, headers = {}) {
-  res
-    .writeHead(status, {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-      ...headers,
-    })
-    .end(JSON.stringify(body));
-}
-
-// Cloudflare sets cf-connecting-ip; the server only accepts traffic through Cloudflare.
-function clientIp(req) {
-  const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim();
-  return req.headers["cf-connecting-ip"] || forwarded || req.socket.remoteAddress || "unknown";
-}
-
-const windows = new Map(); // ip -> { start, count }
-
-function allowRequest(ip) {
-  const now = Date.now();
-  const w = windows.get(ip);
-  if (!w || now - w.start >= 60_000) {
-    windows.set(ip, { start: now, count: 1 });
-    return true;
-  }
-  w.count += 1;
-  return w.count <= RATE_LIMIT_PER_MINUTE;
-}
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, w] of windows) if (now - w.start >= 60_000) windows.delete(ip);
-}, 60_000).unref();

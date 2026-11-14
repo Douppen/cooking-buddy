@@ -5,6 +5,7 @@ import { RecipeEngine, convertUnitSystem, scaleIngredients } from "./engine.js";
 import { RecipeSession } from "./session.js";
 import { getRecipe, listRecipes } from "./recipes.js";
 import { AskRequestSchema } from "./ask.js";
+import { recipeContext } from "./ai/answer.js";
 
 const recipe = getRecipe("buttermilk-pancakes");
 
@@ -43,6 +44,15 @@ test("RecipeSession view and steps", () => {
   assert.ok(session.setStep(5));
   assert.ok(session.nextStep());
   assert.equal(session.getView().isFinished, true);
+});
+
+test("answer prompt scales amounts and marks the current step", () => {
+  const text = recipeContext(recipe, 2, 2);
+  assert.match(text, /making 2 servings/);
+  assert.match(text, /- 125 g Plain flour/);
+  assert.match(text, /- 1 Egg/);
+  assert.equal(text.match(/<- CURRENT STEP/g).length, 1);
+  assert.match(text, /^3\. .*<- CURRENT STEP$/m);
 });
 
 test("ask request validation", () => {

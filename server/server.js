@@ -12,7 +12,9 @@ import { createReadStream, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { aiStatus, handleAsk, sendJson, warmUpAi } from "./ask.js";
+import { aiStatus, warmUpAi } from "./ai/gemini.js";
+import { handleAsk } from "./ask.js";
+import { sendJson } from "./http.js";
 import { getRecipe, listRecipes } from "./recipes.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
