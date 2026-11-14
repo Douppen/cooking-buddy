@@ -42,6 +42,10 @@ proxy:
     path: /up
     interval: 1
     timeout: 5
+  # kamal-proxy cuts responses off after 30 s by default. A new recipe can take longer (web
+  # search up to 20 s, then the fallback writer); the app waits 45 s. Per-app setting: it
+  # doesn't touch the shared proxy's other apps.
+  response_timeout: 50
 
 env:
   clear:

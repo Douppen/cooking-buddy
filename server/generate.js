@@ -58,15 +58,29 @@ export async function handleGenerate(req, res) {
   // 1. A real recipe from the web. One attempt: a backup search would double the cost, and
   //    the fallback below covers failures.
   try {
-    const { recipe, searched } = await findRecipeOnline(searchAi, request, AbortSignal.timeout(SEARCH_TIMEOUT_MS));
-    lastSearch = { ok: true, ms: elapsed(), at: new Date().toISOString(), searched, source: recipe.source?.name ?? null };
+    const { recipe, searched, search } = await findRecipeOnline(searchAi, request, AbortSignal.timeout(SEARCH_TIMEOUT_MS));
+    lastSearch = {
+      ok: true,
+      ms: elapsed(),
+      at: new Date().toISOString(),
+      request: request.request,
+      searched,
+      source: recipe.source?.name ?? null,
+      ...search,
+    };
     console.log(
       `generate: found "${recipe.title}" (${recipe.steps.length} steps) on ${recipe.source?.name ?? "no page"} in ${elapsed()} ms`,
     );
     sendJson(res, 200, { recipe, found_online: searched, model: MODEL, ms: elapsed() });
     return;
   } catch (err) {
-    lastSearch = { ok: false, ms: elapsed(), at: new Date().toISOString(), error: String(failureReason(err)).slice(0, 500) };
+    lastSearch = {
+      ok: false,
+      ms: elapsed(),
+      at: new Date().toISOString(),
+      request: request.request,
+      error: String(failureReason(err)).slice(0, 500),
+    };
     console.error(`generate: web search failed after ${elapsed()} ms, writing the recipe instead:`, failureReason(err));
   }
 

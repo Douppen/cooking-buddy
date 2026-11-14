@@ -72,6 +72,13 @@ export async function findRecipeOnline(ai, input, abortSignal) {
   return {
     recipe: toRecipe(draft, { recipe_id: generatedRecipeId(draft?.title ?? input.request), origin: "generated", edits: [], source }),
     searched: source !== null,
+    // What Google reported about the search, for GET /api/status.
+    search: {
+      queries: metadata?.webSearchQueries ?? [],
+      pages: (metadata?.groundingChunks ?? []).length,
+      site,
+      metadata_fields: Object.keys(metadata ?? {}),
+    },
   };
 }
 
