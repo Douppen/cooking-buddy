@@ -156,3 +156,11 @@ body {
 .answer-dock p {
   margin: 0;
 }
+
+/* Home's status line ("Getting chicken tikka masala, 4 servings…") never wraps: a second line
+   would push the last recipe row into a scroll area. */
+.answer-dock.one-line p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

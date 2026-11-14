@@ -122,12 +122,16 @@ export function Cooking({
         if (controller.signal.aborted) return;
         if (timer) setTimers(running => applyTimerCommand(running, timer, Date.now()));
         lastExchange.current = changed ? undefined : {question: asked, answer};
-        if (changed) onRecipeChange(changed);
-        // A timer's confirmation ("Pasta timer: 10 min.") is labelled TIMER, like its end.
-        if (timer && !changed) dispatch({type: 'notice', title: 'TIMER', text: answer});
-        else dispatch({type: 'answered', answer, changed: Boolean(changed)});
-        // A change (new ingredients and steps, or new servings) only says "Recipe updated".
-        speak(changed ? 'Recipe updated.' : answer);
+        // The answer (and a changed recipe) shows when its voice starts, not before it; a timer
+        // above starts at once. A change (new ingredients and steps, or new servings) only
+        // says "Recipe updated".
+        return speak(changed ? 'Recipe updated.' : answer).then(() => {
+          if (controller.signal.aborted) return;
+          if (changed) onRecipeChange(changed);
+          // A timer's confirmation ("Pasta timer: 10 min.") is labelled TIMER, like its end.
+          if (timer && !changed) dispatch({type: 'notice', title: 'TIMER', text: answer});
+          else dispatch({type: 'answered', answer, changed: Boolean(changed)});
+        });
       })
       .catch(err => {
         if (controller.signal.aborted) return;

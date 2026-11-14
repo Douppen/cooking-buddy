@@ -121,9 +121,11 @@ export function HomePage() {
               -HISTORY_TURNS,
             ),
           );
-          setStatus({kind: 'answered', answer: reply.answer, suggestions: reply.suggestions});
-          speak(reply.answer);
-          return;
+          // "Thinking…" stays until the voice starts, then the answer shows with it.
+          return speak(reply.answer).then(() => {
+            if (signal.aborted) return;
+            setStatus({kind: 'answered', answer: reply.answer, suggestions: reply.suggestions});
+          });
         }
         // What the cook said wins over the box ("for 4"); the box shows it.
         const chosen = reply.servings ? clampServings(reply.servings) : servings;
@@ -160,10 +162,13 @@ export function HomePage() {
       case 'failed':
         return status.message ?? "Couldn't answer that. Try again.";
       case 'idle':
-        return 'What do you want to cook? Or ask for ideas.';
+        // One line, like the field's hint says the rest: a second line pushes the last
+        // recipe row into a scroll area (home must fit 600×600 without scrolling).
+        return 'What do you want to cook?';
     }
   })();
   const suggestions = status.kind === 'answered' ? status.suggestions : [];
+  const oneLine = status.kind === 'idle' || status.kind === 'thinking' || status.kind === 'fetching';
 
   return (
     <Page headerText="Cooking Buddy" enableSystemBarInset={false}>
@@ -180,7 +185,8 @@ export function HomePage() {
             <ListItem key={suggestion} title={suggestion} subtitle="Get the recipe" onClick={() => send(suggestion)} />
           ))}
         </VerticalList>
-        <div className="answer-dock" aria-live="polite">
+        {/* Status lines (not answers or errors) stay on one line, so the last recipe row fits. */}
+        <div className={oneLine ? 'answer-dock one-line' : 'answer-dock'} aria-live="polite">
           <TextView as="p" textStyle={TextStyle.BODY2_EMPHASIZED}>
             {message}
           </TextView>

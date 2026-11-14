@@ -54,6 +54,7 @@ server/
 ├── ai/                # Everything that calls Gemini
 │   ├── gemini.js      # Shared client: credentials, EU location, warm-up, /api/status info
 │   ├── answer.js      # /api/ask: answer, or edit the recipe when the cook asks
+│   ├── speech.js      # /api/speak: answer text → MP3 (Gemini chef voice, plain voice as fallback; EU)
 │   ├── generate.js    # /api/home: sort the box; /api/recipes/generate: find a recipe on the web (fallback: write one)
 │   └── recipeFormat.js # Recipe JSON schema and writing rules shared by both
 ├── models/
@@ -63,6 +64,7 @@ server/
 ├── ask.js             # POST /api/ask: request schema, then ai/answer.js and toRecipe()
 ├── home.js            # POST /api/home: request schema, then sortRequest() in ai/generate.js
 ├── generate.js        # POST /api/recipes/generate: request schema, then findOnline()/writeOffline()
+├── speak.js           # POST /api/speak: request schema, then synthesize() in ai/speech.js
 ├── http.js            # readJsonRequest(), sendJson, clientIp, per-IP rate limiter
 ├── server.js          # HTTP server: routes, static app files, /up health check
 ├── unit.test.js       # npm test: test recipe, scaling, prompts, AI drafts, request validation
@@ -78,10 +80,11 @@ server/
 | Route | What it does |
 | --- | --- |
 | `GET /up` | Health check for Kamal and Docker, answers `OK` |
-| `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up } }`. Free: never calls the model |
+| `GET /api/status` | `{ ok, ai: { configured, model, location, last_warm_up }, search, speech: { configured, model, voice, style, fallback_voice, last } }`. Free: never calls the model |
 | `POST /api/ask` | `{ recipe, question, step_index?, servings?, image? }` → `{ answer, model, ms }`, plus `{ recipe, change_summary }` when it changed the recipe |
 | `POST /api/home` | The home box. `{ request, history? }` (history: the conversation so far, up to 10 `{ role: "cook" \| "buddy", text }` turns). Food talk gives `{ kind: "answer", answer, suggestions, model, ms }`: at most 30 words to show and read aloud, up to 3 dish names. A named dish ("lasagna for 4", "the second one", "yes" to an offered dish) gives `{ kind: "dish", dish, servings, model, ms }`: `servings` is the number the cook said (1–8) or null; the app sets its servings setting to it. Not about food: `422 { error, not_a_recipe: true }`. One fast EU call, no search. 30 requests per minute per IP |
 | `POST /api/recipes/generate` | `{ dish }` from `/api/home` → `{ kind: "recipe", recipe, found_online, model, ms }`: a real recipe found on the web with Google Search and converted to our format, `recipe.source` = `{ name }` of the website (no link); if the search fails, a classic recipe Gemini writes itself (`found_online: false`). A recipe keeps its own servings (the app scales it). Nothing is stored on the server. 20 requests per minute per IP |
+| `POST /api/speak` | `{ text }` (up to 600 characters) → `audio/mpeg`: the answer read aloud by a British chef voice: Gemini's `gemini-3.8-flash-lite-tts` with voice `Algenib` and a style, EU endpoint, encoded to MP3 (~1.8 s). If Gemini fails, the plain `en-GB-Chirp3-HD-Charon` voice from Cloud Text-to-Speech (EU, ~1 s). Header `x-voice: gemini | fallback`. `503` without credentials, `502` when both fail; the app then uses the device's own voice. 40 requests per minute per IP |
 | `GET /*` | The built glasses app; unknown paths without an extension get `index.html`, missing assets 404. `/test.html` is a browser page for trying `/api/ask` |
 
 All JSON responses are sent with `cache-control: no-store`. Errors are `{ error }`.

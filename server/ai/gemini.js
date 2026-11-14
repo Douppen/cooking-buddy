@@ -118,7 +118,8 @@ export function aiStatus() {
   };
 }
 
-function loadCredentials() {
+// The service account key, or null when none is configured. Also used by ai/speech.js.
+export function loadCredentials() {
   if (process.env.GOOGLE_CREDENTIALS_B64) {
     return JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS_B64, "base64").toString("utf8"));
   }

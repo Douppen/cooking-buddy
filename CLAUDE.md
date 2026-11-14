@@ -31,8 +31,11 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   is fetched, so the cook sees it change. The new recipe is scaled to it (see "Servings are the app's job" below). Focus order on home:
   last recipe, dish field, units switch, voice switch, servings.
 - **Voice on or off:** a "Voice" switch next to "Imperial units" (same row, kept on the
-  device, on by default). Off: answers on home and while cooking are text only (`speak()` in
-  `app/src/speech.ts` does nothing).
+  device, on by default). On: answers are read aloud by a British chef voice from
+  `POST /api/speak` (MP3, EU). The answer's text waits for its voice (~2 s, "Thinking…"
+  meanwhile) and shows the moment it starts, at most 4 s later; if the voice fails, the
+  device's own voice (`speechSynthesis`) reads it. Off: answers on home and while cooking
+  are text only (`speak()` in `app/src/speech.ts` does nothing).
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
   steps** in one list; swiping right again does nothing. **Swipe left** (`prev`) goes back
@@ -181,8 +184,21 @@ Build everything so that port is cheap:
   every 15 minutes, because a cold first call took about 8 s. A backup request
   (`withBackup` in `server/ai/gemini.js`) covers Gemini's occasional stalls: after 10 s for
   `/api/ask`, 15 s for a new recipe.
+- **Spoken answers (`POST /api/speak`, `server/ai/speech.js`):** `{ text }` → MP3. The
+  voice is a character: Gemini's speech model `gemini-3.8-flash-lite-tts` (`TTS_MODEL`) on
+  the EU endpoint, prebuilt voice `Algenib` (`TTS_VOICE`, picked by ear) and a style
+  (`TTS_STYLE`): "an energetic, passionate British chef, warm but a bit cheeky, with a deep
+  bass voice". The style goes in `speechMetadata.style`, never in the text (the model reads
+  the text word for word). No real person's voice: Google only clones a voice with its
+  owner's recorded consent. The server streams Gemini's raw PCM (faster than one call:
+  ~1.8 s for a 30-word answer) and encodes it to MP3 (`@breezystack/lamejs`, ~25-35 KB).
+  If Gemini fails or takes over 6 s, Cloud Text-to-Speech reads it with the plain British
+  voice `en-GB-Chirp3-HD-Charon` (`TTS_FALLBACK_VOICE`, `eu-texttospeech.googleapis.com`,
+  ~1 s; the Cloud Text-to-Speech API is enabled on the project for this). The response
+  header `x-voice` says which (`gemini` or `fallback`); `GET /api/status` shows how the
+  last one went (`speech.last`).
 - The endpoints are public and every call costs money: `/api/ask` and `/api/home` are
-  limited to 30 requests and `/api/recipes/generate` to 20 per minute per client IP (Cloudflare's
+  limited to 30 requests, `/api/speak` to 40, and `/api/recipes/generate` to 20 per minute per client IP (Cloudflare's
   `cf-connecting-ip`).
 
 ## Layout
@@ -190,7 +206,7 @@ Build everything so that port is cheap:
 ```
 app/      Glasses web app: React + Vite + @wearables-ui-toolkit/mrbd. Built to static files.
 server/   Node server: serves app/dist, health at /up, API under /api (zod for validation).
-          ask.js = /api/ask, home.js = /api/home, generate.js = /api/recipes/generate, http.js = shared request
+          ask.js = /api/ask, home.js = /api/home, generate.js = /api/recipes/generate, speak.js = /api/speak, http.js = shared request
           handling, ai/ = everything that calls Gemini (gemini.js = shared client, warm-up,
           withBackup; one file per task), models/domain.js = recipe schema, scaling.js =
           servings and units, fixtures/ = a test recipe for npm test and npm run ask.
@@ -257,7 +273,8 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
   hides its title, so the servings box is a toolkit `Container` that takes left/right
   itself while focused. Native: a focusable row that handles left/right swipes. The units
   and voice switches are toolkit `Switch`es in `Container`s whose surface only shows when
-  focused. Speech is the browser's `speechSynthesis`; native uses the phone's TTS.
+  focused. Speech is MP3 from `/api/speak` in an `<audio>` element, falling back to the
+  browser's `speechSynthesis`; native plays the same MP3 (fallback: the phone's TTS).
 - The cooking screen (since 2026-11-14) is two views: ingredients, then all steps, each a
   vertical list. On the web, the toolkit `Pager` slides between them and its focus
   navigation scrolls a focused `ScrollView` about 60 px per up/down swipe, then moves focus
