@@ -28,6 +28,53 @@ export function readBody(req, limit) {
   });
 }
 
+/**
+ * The shared front half of a JSON POST endpoint: method, content type, size, rate limit,
+ * parsing and Zod validation. Answers the error itself (405, 415, 413, 429, 400) and returns
+ * null, or returns the validated data.
+ * @param {{ schema: import("zod").ZodType, maxBytes: number, allow: (ip: string) => boolean,
+ *           tooManyMessage: string }} options
+ */
+export async function readJsonRequest(req, res, { schema, maxBytes, allow, tooManyMessage }) {
+  if (req.method !== "POST") {
+    sendJson(res, 405, { error: "Use POST" }, { allow: "POST" });
+    return null;
+  }
+  if (!String(req.headers["content-type"] ?? "").startsWith("application/json")) {
+    sendJson(res, 415, { error: "Send JSON with content-type: application/json" });
+    return null;
+  }
+  if (Number(req.headers["content-length"] ?? 0) > maxBytes) {
+    sendJson(res, 413, { error: "Request is too large" });
+    return null;
+  }
+  if (!allow(clientIp(req))) {
+    sendJson(res, 429, { error: tooManyMessage });
+    return null;
+  }
+  let json;
+  try {
+    json = JSON.parse(await readBody(req, maxBytes));
+  } catch (err) {
+    sendJson(res, err.status ?? 400, { error: err.status ? err.message : "Body is not valid JSON" });
+    return null;
+  }
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    sendJson(res, 400, {
+      error: "Invalid request",
+      issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+    });
+    return null;
+  }
+  return parsed.data;
+}
+
+// A loggable reason for a failed call, including both attempts when withBackup gave up.
+export function failureReason(err) {
+  return err instanceof AggregateError ? err.errors.map((e) => e?.message ?? e).join(" | ") : (err?.message ?? err);
+}
+
 // Cloudflare sets cf-connecting-ip; the server only accepts traffic through Cloudflare.
 export function clientIp(req) {
   const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim();

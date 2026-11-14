@@ -18,12 +18,11 @@ import { z } from "zod";
 import { answerQuestion } from "./ai/answer.js";
 import { MODEL, getClient, withBackup } from "./ai/gemini.js";
 import { RecipeSchema, toRecipe } from "./models/domain.js";
+import { createRateLimiter, failureReason, readJsonRequest, sendJson } from "./http.js";
 
 // A question takes ~1.5-2.5 s; an answer that changes the recipe also writes the whole
 // recipe and takes ~8.5 s (measured). Send the backup request only after that.
 const EDIT_BACKUP_AFTER_MS = 10_000;
-import { clientIp, createRateLimiter, readBody, sendJson } from "./http.js";
-
 const MAX_BODY_BYTES = 3 * 1024 * 1024; // room for a ~2 MB photo as base64
 const allowRequest = createRateLimiter(30); // per client IP: the endpoint is public and every call costs money
 
@@ -49,38 +48,13 @@ export const AskRequestSchema = z
   });
 
 export async function handleAsk(req, res) {
-  if (req.method !== "POST") {
-    sendJson(res, 405, { error: "Use POST" }, { allow: "POST" });
-    return;
-  }
-  if (!String(req.headers["content-type"] ?? "").startsWith("application/json")) {
-    sendJson(res, 415, { error: "Send JSON with content-type: application/json" });
-    return;
-  }
-  if (Number(req.headers["content-length"] ?? 0) > MAX_BODY_BYTES) {
-    sendJson(res, 413, { error: "Request is too large" });
-    return;
-  }
-  if (!allowRequest(clientIp(req))) {
-    sendJson(res, 429, { error: "Too many questions. Wait a minute and try again." });
-    return;
-  }
-
-  let json;
-  try {
-    json = JSON.parse(await readBody(req, MAX_BODY_BYTES));
-  } catch (err) {
-    sendJson(res, err.status ?? 400, { error: err.status ? err.message : "Body is not valid JSON" });
-    return;
-  }
-  const parsed = AskRequestSchema.safeParse(json);
-  if (!parsed.success) {
-    sendJson(res, 400, {
-      error: "Invalid request",
-      issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
-    });
-    return;
-  }
+  const request = await readJsonRequest(req, res, {
+    schema: AskRequestSchema,
+    maxBytes: MAX_BODY_BYTES,
+    allow: allowRequest,
+    tooManyMessage: "Too many questions. Wait a minute and try again.",
+  });
+  if (!request) return;
 
   const ai = getClient();
   if (!ai) {
@@ -89,13 +63,13 @@ export async function handleAsk(req, res) {
   }
 
   const started = performance.now();
-  const current = parsed.data.recipe;
+  const current = request.recipe;
   try {
     // Building the changed recipe happens inside the call, so an invalid one from the model
     // counts as a failed attempt and the backup request gets a chance.
     const { value, attempt } = await withBackup(
       async (signal) => {
-        const { answer, changeSummary, draft } = await answerQuestion(ai, parsed.data, signal);
+        const { answer, changeSummary, draft } = await answerQuestion(ai, request, signal);
         const recipe = draft
           ? toRecipe(draft, {
               recipe_id: current.recipe_id,
@@ -118,9 +92,7 @@ export async function handleAsk(req, res) {
       ...(value.recipe ? { recipe: value.recipe, change_summary: value.changeSummary } : {}),
     });
   } catch (err) {
-    const reason =
-      err instanceof AggregateError ? err.errors.map((e) => e?.message ?? e).join(" | ") : (err?.message ?? err);
-    console.error(`ask failed after ${Math.round(performance.now() - started)} ms:`, reason);
+    console.error(`ask failed after ${Math.round(performance.now() - started)} ms:`, failureReason(err));
     sendJson(res, 502, { error: "The AI didn't answer. Try again." });
   }
 }

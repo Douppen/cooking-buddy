@@ -10,7 +10,7 @@
 import { z } from "zod";
 import { generateRecipe } from "./ai/generate.js";
 import { MODEL, getClient, withBackup } from "./ai/gemini.js";
-import { clientIp, createRateLimiter, readBody, sendJson } from "./http.js";
+import { createRateLimiter, failureReason, readJsonRequest, sendJson } from "./http.js";
 
 const MAX_BODY_BYTES = 16 * 1024;
 const allowRequest = createRateLimiter(10); // per client IP: writing a recipe costs more than an answer
@@ -21,34 +21,13 @@ export const GenerateRequestSchema = z.object({
 });
 
 export async function handleGenerate(req, res) {
-  if (req.method !== "POST") {
-    sendJson(res, 405, { error: "Use POST" }, { allow: "POST" });
-    return;
-  }
-  if (!String(req.headers["content-type"] ?? "").startsWith("application/json")) {
-    sendJson(res, 415, { error: "Send JSON with content-type: application/json" });
-    return;
-  }
-  if (!allowRequest(clientIp(req))) {
-    sendJson(res, 429, { error: "Too many new recipes. Wait a minute and try again." });
-    return;
-  }
-
-  let json;
-  try {
-    json = JSON.parse(await readBody(req, MAX_BODY_BYTES));
-  } catch (err) {
-    sendJson(res, err.status ?? 400, { error: err.status ? err.message : "Body is not valid JSON" });
-    return;
-  }
-  const parsed = GenerateRequestSchema.safeParse(json);
-  if (!parsed.success) {
-    sendJson(res, 400, {
-      error: "Invalid request",
-      issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
-    });
-    return;
-  }
+  const request = await readJsonRequest(req, res, {
+    schema: GenerateRequestSchema,
+    maxBytes: MAX_BODY_BYTES,
+    allow: allowRequest,
+    tooManyMessage: "Too many new recipes. Wait a minute and try again.",
+  });
+  if (!request) return;
 
   const ai = getClient();
   if (!ai) {
@@ -60,7 +39,7 @@ export async function handleGenerate(req, res) {
   try {
     // Writing a recipe normally takes several seconds, so the backup waits longer than /api/ask's.
     const { value: recipe, attempt } = await withBackup(
-      (signal) => generateRecipe(ai, parsed.data, signal),
+      (signal) => generateRecipe(ai, request, signal),
       { backupAfterMs: 15_000, attemptTimeoutMs: 30_000 },
     );
     const ms = Math.round(performance.now() - started);
@@ -70,9 +49,7 @@ export async function handleGenerate(req, res) {
     );
     sendJson(res, 200, { recipe, model: MODEL, ms });
   } catch (err) {
-    const reason =
-      err instanceof AggregateError ? err.errors.map((e) => e?.message ?? e).join(" | ") : (err?.message ?? err);
-    console.error(`generate failed after ${Math.round(performance.now() - started)} ms:`, reason);
+    console.error(`generate failed after ${Math.round(performance.now() - started)} ms:`, failureReason(err));
     sendJson(res, 502, { error: "Couldn't write that recipe. Try again." });
   }
 }

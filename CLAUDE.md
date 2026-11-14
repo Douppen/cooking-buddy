@@ -110,10 +110,11 @@ Build everything so that port is cheap:
 ```
 app/      Glasses web app: React + Vite + @wearables-ui-toolkit/mrbd. Built to static files.
 server/   Node server: serves app/dist, health at /up, API under /api (zod for validation).
-          ask.js = /api/ask, recipes.js = /api/recipes, http.js = shared HTTP helpers,
-          ai/ = everything that calls Gemini (gemini.js = shared client, warm-up, status;
-          one file per task, e.g. answer.js for /api/ask), models/ = schemas,
-          recipes/ = recipe JSON files, engine.js / session.js = recipe logic (server/README.md).
+          ask.js = /api/ask, generate.js = /api/recipes/generate, recipes.js = /api/recipes,
+          http.js = shared request handling, ai/ = everything that calls Gemini (gemini.js =
+          shared client, warm-up, withBackup; one file per task), models/domain.js = recipe
+          schema, recipes/ = recipe JSON files, scaling.js = servings and units.
+          Stateless: step state and AI-written recipes live in the app (server/README.md).
 config/   Kamal deploy config.   .kamal/secrets reads secrets from the environment.
 .github/  Deploy workflow and the pinned SSH host key of the server.
 ```
@@ -125,7 +126,7 @@ cd server && npm install && npm start   # :8787, serves app/dist if built
 cd app && npm run dev           # :5173, proxies /api to :8787
 cd app && npm run build         # typecheck + production build
 cd server && npm run smoke      # smoke test; add -- https://cook.simonnars.com for prod
-cd server && npm test           # unit tests: engine, session, recipes, request validation
+cd server && npm test           # unit tests: recipes, scaling, prompts, AI drafts, validation
 cd server && npm run ask        # real questions through /api/ask (calls Gemini, costs ~nothing)
                                 #   add -- https://cook.simonnars.com, or --image photo.jpg
 ```
@@ -170,3 +171,9 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
 - A WebSocket relay with rooms (glasses ↔ phone camera page) was removed on 2026-11-14:
   the native phone app makes it unnecessary. If a live demo screen for judges or a remote
   debug console is ever needed, restore it from git history: `git log -- app/src/relay.ts` (last version in commit `ff8963c`).
+- Server-side step state was removed on 2026-11-14, since the app owns the step index
+  (`app/src/cookingState.ts`): `server/session.js` (sessions, pub/sub, auto-advance after 2
+  confident camera frames), `RecipeEngine` in `server/engine.js`, and the unused schemas
+  `models/protocol.js` and `models/vision.js` (camera frame → step classification). For
+  camera step detection in the native app, start from `git show 441e5ea:server/session.js`
+  and `git show 441e5ea:server/models/vision.js`.

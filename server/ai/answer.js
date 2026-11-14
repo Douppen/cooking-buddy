@@ -2,6 +2,7 @@
 // what they see, and change the recipe when they ask for it ("I don't have buttermilk").
 // Used by POST /api/ask. Answers are shown on the HUD and read aloud.
 
+import { convertUnitSystem, scaleIngredients } from "../scaling.js";
 import { MODEL } from "./gemini.js";
 import { RECIPE_DRAFT_JSON_SCHEMA, RECIPE_WRITING_RULES, recipeToDraft } from "./recipeFormat.js";
 
@@ -93,14 +94,13 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
 
 // The recipe as plain text: amounts scaled to `servings`, substitutes, current step marked.
 export function recipeContext(recipe, stepIndex, servings) {
-  const factor = servings / recipe.base_servings;
   const lines = [`Recipe: ${recipe.title}, making ${servings} servings.`, "Ingredients:"];
-  for (const ing of recipe.ingredients) {
-    const unit = ing.base_unit === "unit" ? "" : ` ${ing.base_unit}`;
-    const subs = ing.substitutes.length ? ` (substitutes: ${ing.substitutes.join("; ")})` : "";
+  const scaled = convertUnitSystem(scaleIngredients(recipe.ingredients, servings / recipe.base_servings), "metric");
+  recipe.ingredients.forEach((ing, i) => {
     const optional = ing.optional ? " (optional)" : "";
-    lines.push(`- ${round(ing.base_amount * factor)}${unit} ${ing.name}${optional}${subs}`);
-  }
+    const subs = ing.substitutes.length ? ` (substitutes: ${ing.substitutes.join("; ")})` : "";
+    lines.push(`- ${scaled[i].display}${optional}${subs}`);
+  });
   lines.push("Steps:");
   recipe.steps.forEach((step, i) => {
     const current = i === stepIndex ? "  <- CURRENT STEP" : "";
@@ -108,8 +108,4 @@ export function recipeContext(recipe, stepIndex, servings) {
   });
   if (recipe.edits?.length) lines.push(`Changes already made for this cook: ${recipe.edits.join("; ")}.`);
   return lines.join("\n");
-}
-
-function round(n) {
-  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(1)));
 }

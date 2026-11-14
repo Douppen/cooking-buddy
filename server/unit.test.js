@@ -1,11 +1,13 @@
 // Fast checks that need no server and no Gemini: `npm test` (node's built-in test runner).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RecipeEngine, convertUnitSystem, scaleIngredients } from "./engine.js";
-import { RecipeSession } from "./session.js";
+import { convertUnitSystem, scaleIngredients } from "./scaling.js";
 import { getRecipe, listRecipes } from "./recipes.js";
+import { toRecipe } from "./models/domain.js";
 import { AskRequestSchema } from "./ask.js";
+import { GenerateRequestSchema } from "./generate.js";
 import { recipeContext } from "./ai/answer.js";
+import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
 
 const recipe = getRecipe("buttermilk-pancakes");
 
@@ -24,28 +26,6 @@ test("scaling and unit conversion", () => {
   assert.equal(convertUnitSystem(scaleIngredients([milk], 1), "imperial")[0].display, "2.03 cups Buttermilk");
 });
 
-test("RecipeEngine navigation and HUD state", () => {
-  const engine = new RecipeEngine(recipe, 2);
-  engine.nextStep();
-  const hud = engine.getHudState();
-  assert.equal(hud.active_step_index, 1);
-  assert.equal(hud.target_servings, 2);
-  assert.ok(hud.display_ingredients.includes("125 g Plain flour"));
-  engine.setServings(2.5); // ignored: servings must be whole
-  assert.equal(engine.getHudState().target_servings, 2);
-});
-
-test("RecipeSession view and steps", () => {
-  const session = new RecipeSession({ id: "t1", recipe });
-  const view = session.getView();
-  assert.equal(view.recipeName, "Buttermilk Pancakes");
-  assert.equal(view.servings, 4);
-  assert.equal(view.currentStep.title, "Mix dry");
-  assert.ok(session.setStep(5));
-  assert.ok(session.nextStep());
-  assert.equal(session.getView().isFinished, true);
-});
-
 test("answer prompt scales amounts and marks the current step", () => {
   const text = recipeContext(recipe, 2, 2);
   assert.match(text, /making 2 servings/);
@@ -61,9 +41,7 @@ test("ask request validation", () => {
   assert.equal(AskRequestSchema.safeParse({ recipe, step_index: 0, question: "  " }).success, false);
 });
 
-test("AI drafts become valid recipes", async () => {
-  const { toRecipe } = await import("./models/domain.js");
-  const { recipeToDraft, generatedRecipeId } = await import("./ai/recipeFormat.js");
+test("AI drafts become valid recipes", () => {
   // A library recipe survives a round trip through the AI's draft format unchanged.
   const roundTrip = toRecipe(recipeToDraft(recipe), {
     recipe_id: recipe.recipe_id,
@@ -95,8 +73,7 @@ test("AI drafts become valid recipes", async () => {
   }));
 });
 
-test("generate request validation", async () => {
-  const { GenerateRequestSchema } = await import("./generate.js");
+test("generate request validation", () => {
   assert.ok(GenerateRequestSchema.safeParse({ request: "carbonara for 4" }).success);
   assert.ok(GenerateRequestSchema.safeParse({ request: "lasagne", servings: 6 }).success);
   assert.equal(GenerateRequestSchema.safeParse({ request: "   " }).success, false);

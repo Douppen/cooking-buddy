@@ -1,8 +1,10 @@
 # Cooking Buddy server
 
 Backend for Cooking Buddy on Meta Ray-Ban Display glasses. It serves the glasses web app,
-holds the recipes and the recipe logic (scaling, unit conversion, step state), and answers
-questions about the current step with Gemini. The glasses app stays thin so a future native
+holds the library recipes and their scaling, and uses Gemini to answer questions about the
+current step, edit a recipe on request and write new recipes. The server is stateless:
+the current step and AI-written recipes live in the app (`app/src/cookingState.ts`,
+`app/src/recipeStore.ts`), which sends the whole recipe with every request. The glasses app stays thin so a future native
 app can call the same endpoints (see the repo's `CLAUDE.md`). For running the whole project
 and deploying, see the [root README](../README.md).
 
@@ -53,19 +55,15 @@ server/
 │   ├── generate.js    # /api/recipes/generate: write a classic recipe for a named dish
 │   └── recipeFormat.js # Recipe JSON schema and writing rules shared by both
 ├── models/
-│   ├── domain.js      # Recipe, ingredient and step schemas (Zod), AI drafts, toRecipe()
-│   ├── protocol.js    # HUD sync / control message schemas (Zod), from the removed relay
-│   ├── vision.js      # Step classification result for camera frames (Zod, not used yet)
-│   └── index.js       # Barrel export for models
+│   └── domain.js      # Recipe, ingredient and step schemas (Zod), AI drafts, toRecipe()
 ├── recipes/           # Recipe JSON files, validated against RecipeSchema at startup
-├── engine.js          # Pure math: scaling, unit conversion, HUD formatting
-├── session.js         # In-memory cooking session state machine + pub/sub (not wired up yet)
+├── scaling.js         # Pure functions: scale to servings, metric/imperial display amounts
 ├── recipes.js         # Loads recipes/, GET /api/recipes and /api/recipes/:id
-├── ask.js             # POST /api/ask: validation, rate limit, errors; calls ai/answer.js
-├── generate.js        # POST /api/recipes/generate: same, for ai/generate.js
-├── http.js            # sendJson, readBody, clientIp, per-IP rate limiter
+├── ask.js             # POST /api/ask: request schema, then ai/answer.js and toRecipe()
+├── generate.js        # POST /api/recipes/generate: request schema, then ai/generate.js
+├── http.js            # readJsonRequest(), sendJson, clientIp, per-IP rate limiter
 ├── server.js          # HTTP server: routes, static app files, /up health check
-├── unit.test.js       # npm test: engine, session, recipes and request validation
+├── unit.test.js       # npm test: recipes, scaling, prompts, AI drafts, request validation
 ├── smoke.js           # npm run smoke: HTTP checks against a running server
 ├── ask-check.js       # npm run ask: real questions through /api/ask (calls Gemini)
 └── package.json
@@ -103,8 +101,11 @@ All JSON responses are sent with `cache-control: no-store`. Errors are `{ error 
 | 400 | Not JSON, or fails validation (`issues: [{ path, message }]`) |
 | 405 / 415 / 413 | Not POST / not `application/json` / body over 3 MB |
 | 429 | More than 30 requests in a minute from one client IP (`cf-connecting-ip`) |
-| 502 | Gemini failed or timed out: each attempt gets 10 s, and a backup request starts after 3.5 s or as soon as the first fails |
+| 502 | Gemini failed or timed out: each attempt gets 20 s, and a backup request starts after 10 s (an edit takes up to ~8.5 s) or as soon as the first fails |
 | 503 | No Google credentials configured |
+
+`POST /api/recipes/generate` answers the same way, with a 16 KB body limit, 10 requests
+a minute per IP, and a backup request after 15 s (30 s per attempt).
 
 ---
 
@@ -127,33 +128,21 @@ health check instead of failing on a user. `npm test` catches it first.
 
 ## File responsibilities
 
-### `models/` (data contracts)
+### `models/domain.js` (recipe schema)
 
-Runtime schemas in **Zod** for payloads entering or leaving the backend.
+The **Zod** recipe schema, used for recipe files, requests and AI output: base metric units
+(`g`, `ml`, `unit`), substitutes, optional ingredients, short step instructions, visual
+cues, timers, `origin` (`library` / `generated`) and `edits`. Also `RecipeDraftSchema` (a
+recipe as the AI writes it, without ids) and `toRecipe()`, which turns a draft into a valid
+Recipe.
 
-- **`domain.js`**: normalized recipes: base metric units (`g`, `ml`, `unit`), substitutions,
-  short step instructions, visual cues and timers.
-- **`protocol.js`**: tagged `{ t, ... }` messages written for the WebSocket relay, which was
-  removed (see "Porting notes" in `CLAUDE.md`). Only `HudSyncMessageSchema` is still used,
-  by `engine.js` to validate its HUD state.
-- **`vision.js`**: result shape for classifying a camera frame into a recipe step (for the
-  native app, which gets camera access).
+### `scaling.js` (servings and units)
 
-### `engine.js` (stateless computation)
-
-Pure functions with no side effects: `scaleIngredients()` and `convertUnitSystem()` (metric
-or imperial, with practical cooking rounding: oz/lbs for grams, fl oz/cups for millilitres,
-counts unchanged), plus `RecipeEngine`, which wraps a recipe with servings, units and the
-active step and produces the HUD state. Its navigation stops at the last step.
-
-### `session.js` (session state machine)
-
-In-memory cooking sessions (`RecipeSession`, `SessionStore`): current step, scale factor,
-unit system, completed steps and recent camera classifications. `getView()` builds the HUD
-view with `engine.js`. Unlike `RecipeEngine`, `nextStep()` on the last step moves past it
-and the view reports `isFinished`. A debounce gate auto-advances only after 2 consecutive
-frames with confidence >= 0.8. Subscribers are notified on every change, and idle sessions
-are removed after 4 hours. Not wired to any endpoint yet.
+Pure functions with no side effects: `scaleIngredients()` multiplies amounts by
+servings / base servings, and `convertUnitSystem()` turns them into display amounts in
+metric or imperial with practical cooking rounding (oz/lbs for grams, fl oz/cups for
+millilitres, counts unchanged). The answer prompt uses it, and so should a future
+"scale servings" feature.
 
 ### `recipes.js` (recipe store)
 
@@ -162,7 +151,7 @@ Reads and validates every `recipes/*.json` once at startup and keeps them in mem
 ### `ai/` (everything that calls Gemini)
 
 One shared client, one file per AI task. Gemini handles both text and images, so camera
-step detection (`vision.js`) and any LLM command parsing would be new files here using the
+step detection and any LLM command parsing would be new files here using the
 same client. Speech-to-text is not here: the device transcribes, and the server only gets
 text.
 
@@ -176,7 +165,7 @@ text.
   starts one backup call and uses whichever finishes first. Use it for every user-facing
   AI call.
 - **`answer.js`**: `answerQuestion()` builds the prompt (`recipeContext()`: amounts scaled to
-  the requested servings, substitutes, optional ingredients, earlier edits, the current step
+  the requested servings with `scaling.js`, substitutes, optional ingredients, earlier edits, the current step
   marked, plus the recipe as JSON) and asks Gemini with reasoning level `LOW` for structured
   JSON: a 1–2 sentence `answer`, and, only when the cook asked for a change, a
   `change_summary` and the whole updated recipe as a draft. `ask.js` turns that draft into a
@@ -188,16 +177,19 @@ text.
   (metric units, at most 15 words a step, timers), and `recipeToDraft()`. No
   `minItems`/`maxItems`: with them on both lists Gemini rejects the schema.
 
-### `ask.js` (POST /api/ask)
+### `ask.js` and `generate.js` (the AI endpoints)
 
-The HTTP side of answers: content type and size checks, the per-IP rate limit (30 a
-minute), Zod validation (`AskRequestSchema`), then `ai/answer.js`, mapping failures to the
-status codes above.
+Each holds its request schema (`AskRequestSchema`, `GenerateRequestSchema`), rate limit
+and backup timings, reads the request with `readJsonRequest()`, calls its `ai/` file inside
+`withBackup()`, and answers 200, 502 or 503. `ask.js` also turns an edited draft into a
+Recipe with `toRecipe()`, inside the call, so an invalid edit counts as a failed attempt.
 
 ### `http.js` (shared helpers)
 
-`sendJson()`, `readBody()` with a size limit, `clientIp()` (Cloudflare's
-`cf-connecting-ip` first) and `createRateLimiter()`.
+`readJsonRequest()` does the front half of every JSON POST endpoint: method, content type,
+size, rate limit, parsing and Zod validation, answering 405 / 415 / 413 / 429 / 400 itself.
+Also `sendJson()`, `readBody()`, `clientIp()` (Cloudflare's `cf-connecting-ip` first),
+`createRateLimiter()` and `failureReason()` for logging failed AI calls.
 
 ### `server.js` (HTTP)
 

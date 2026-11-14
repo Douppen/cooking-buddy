@@ -33,7 +33,7 @@ export const StepSchema = z.object({
   visual_cues: z
     .array(z.string())
     .default([])
-    .describe("Visual anchors for VLM state classifier"),
+    .describe("What the step looks like when done, for answers and later camera step detection"),
   timer_sec: z
     .number()
     .int()
