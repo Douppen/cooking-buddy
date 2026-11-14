@@ -74,8 +74,10 @@ Build everything so that port is cheap:
 ```
 app/      Glasses web app: React + Vite + @wearables-ui-toolkit/mrbd. Built to static files.
 server/   Node server: serves app/dist, health at /up, API under /api (zod for validation).
-          ask.js = /api/ask + /api/status, recipes.js = /api/recipes, models/ = schemas,
-          recipes/ = recipe JSON files, engine.js / session.js = recipe logic (server/README.MD).
+          ask.js = /api/ask, recipes.js = /api/recipes, http.js = shared HTTP helpers,
+          ai/ = everything that calls Gemini (gemini.js = shared client, warm-up, status;
+          one file per task, e.g. answer.js for /api/ask), models/ = schemas,
+          recipes/ = recipe JSON files, engine.js / session.js = recipe logic (server/README.md).
 config/   Kamal deploy config.   .kamal/secrets reads secrets from the environment.
 .github/  Deploy workflow and the pinned SSH host key of the server.
 ```
