@@ -27,7 +27,7 @@ const STEP = {
   type: "object",
   properties: {
     title: { type: "string", description: "Two or three word action heading" },
-    instruction: { type: "string", description: "One action, at most 15 words, readable at a glance" },
+    instruction: { type: "string", description: "One action, at most 18 words, with the amount and unit of every ingredient it uses, e.g. 'Heat 25 ml olive oil and brown 750 g beef mince in two batches'" },
     visual_cues: { type: "array", items: { type: "string" }, description: "What done looks like, at most 2" },
     timer_sec: {
       anyOf: [{ type: "integer", minimum: 0 }, { type: "null" }],
@@ -55,7 +55,8 @@ export const RECIPE_WRITING_RULES = [
   "- Metric amounts for base_servings: g for solids, ml for liquids, unit for countable things.",
   "- Ingredient names are plain and include prep, e.g. 'Garlic cloves, thinly sliced'.",
   "- Give 0-2 common substitutes per ingredient. Set optional to true only for things the dish works without (garnishes, extras).",
-  "- Steps are in cooking order, one action each, at most 15 words, readable at a glance on smart glasses.",
+  "- Steps are in cooking order, one action each, at most 18 words, readable at a glance on smart glasses.",
+  "- Every step names the amount and unit of each ingredient it uses, as plain text matching the ingredient list, e.g. 'Heat 25 ml olive oil in the pan and brown 750 g beef mince in two batches'. Counted things as numbers: '2 garlic cloves'. If an ingredient is split across steps, give each step its share ('Add half the stock, 250 ml').",
   "- Every step that cooks, bakes, rests, chills or waits says how long in its text (e.g. 'Bake 10-12 min until golden'), and its heat level. Set timer_sec for those steps, otherwise null.",
   "- Temperatures always in Celsius, written like '200°C' (fan ovens: '180°C fan'). Convert °F and gas marks from any source. Lengths in cm or mm.",
   "- visual_cues: 0-2 short phrases describing what the step looks like when done.",

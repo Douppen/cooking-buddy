@@ -30,7 +30,7 @@ export const StepSchema = z.object({
   title: z.string().describe("Concise action heading (e.g. 'Sear Chicken')"),
   instruction: z
     .string()
-    .describe("Glanceable directive (<= 15 words) for glasses HUD"),
+    .describe("Glanceable directive (<= 18 words) with each ingredient amount and unit"),
   visual_cues: z
     .array(z.string())
     .default([])

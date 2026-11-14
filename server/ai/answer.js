@@ -22,7 +22,7 @@ const SYSTEM_INSTRUCTION = [
   "can't or don't want to use something, or asks to swap, add, remove or adjust something.",
   "When you change it:",
   "- Make the smallest change that keeps the dish working. Prefer a listed substitute.",
-  "- Update every step that mentions what changed. Keep everything else the same: same order, same wording.",
+  "- Update every step that mentions what changed, including the amounts in its text. Keep everything else the same: same order, same wording.",
   "- Keep base_servings and write amounts for base_servings, like the recipe JSON you are given.",
   "- Return the whole updated recipe in `recipe` and a few words in `change_summary`, e.g. 'Swapped buttermilk for milk and lemon'.",
   "- In `answer`, tell the cook what changed and what to do now.",
