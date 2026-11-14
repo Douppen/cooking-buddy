@@ -1,7 +1,7 @@
 // `npm test` in app/ (node's test runner, see units.test.ts).
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {applyTimerCommand, timerDoneText, timerLine, type Timer} from './timers.ts';
+import {applyTimerCommand, timerDoneSpeech, timerDoneText, timerLine, type Timer} from './timers.ts';
 
 const at = (h: number, m: number) => new Date(2026, 10, 14, h, m).getTime();
 
@@ -35,4 +35,5 @@ test('a timer counts down to the second and shows when it ends', () => {
   assert.equal(timerLine({id: 'y', label: 'Stew', endsAt: at(17, 5)}, at(15, 0)), 'Stew · 2:05:00 · done 17:05');
   assert.equal(timerDoneText(timer), 'Pasta timer is done.');
   assert.equal(timerDoneText({...timer, label: 'Timer'}), 'Your timer is done.');
+  assert.equal(timerDoneSpeech(timer), "Time's up! Pasta timer is done.");
 });

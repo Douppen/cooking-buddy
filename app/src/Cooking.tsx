@@ -22,7 +22,8 @@ import {
 import {AskField, SEND_HINT} from './AskField';
 import {speak, stopSpeaking} from './speech';
 import {TimerDock} from './TimerDock';
-import {applyTimerCommand, timerDoneText, type Timer} from './timers';
+import {CHIME_MS, playChime, unlockChime} from './chime';
+import {TIMER_NOTICE_MS, applyTimerCommand, timerDoneSpeech, timerDoneText, type Timer} from './timers';
 import type {UnitSystem} from './units';
 
 // Cooking one recipe: the ingredients, and one swipe right, all the steps. Below both, a
@@ -56,9 +57,10 @@ export function Cooking({
       setTimeout(
         () => {
           setTimers(running => running.filter(t => t.id !== timer.id));
-          const text = timerDoneText(timer);
-          dispatch({type: 'notice', title: 'TIMER', text});
-          speak(text);
+          // A ping, then "Time's up! Pasta timer is done." The notice goes after TIMER_NOTICE_MS.
+          dispatch({type: 'notice', title: 'TIMER', text: timerDoneText(timer)});
+          playChime();
+          setTimeout(() => speak(timerDoneSpeech(timer)), CHIME_MS);
         },
         Math.max(0, timer.endsAt - Date.now()),
       ),
@@ -78,10 +80,11 @@ export function Cooking({
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  // An answer shows for a while, then goes away.
+  // An answer shows for a while, then goes away; a timer notice sooner.
   useEffect(() => {
     if (state.mode.kind !== 'answer' && state.mode.kind !== 'error') return;
-    const timer = setTimeout(() => dispatch({type: 'dismiss'}), ANSWER_VISIBLE_MS);
+    const visible = state.mode.kind === 'answer' && state.mode.title === 'TIMER' ? TIMER_NOTICE_MS : ANSWER_VISIBLE_MS;
+    const timer = setTimeout(() => dispatch({type: 'dismiss'}), visible);
     return () => clearTimeout(timer);
   }, [state.mode]);
 
@@ -104,6 +107,8 @@ export function Cooking({
   const send = (text: string) => {
     const asked = text.trim();
     if (!asked || busy) return;
+    // This pinch is a user action: let a timer's ping play later.
+    unlockChime();
     setQuestion('');
     setBusy(true);
     const controller = new AbortController();

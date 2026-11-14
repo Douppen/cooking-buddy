@@ -51,7 +51,15 @@ export function timerLine(timer: Timer, now: number): string {
   return `${timer.label} · ${left} · done ${clock}`;
 }
 
-/** Said and shown when a timer ends. */
+/** Shown when a timer ends. */
 export function timerDoneText(timer: Timer): string {
   return timer.label === 'Timer' ? 'Your timer is done.' : `${timer.label} timer is done.`;
 }
+
+/** Said after the ping when a timer ends. */
+export function timerDoneSpeech(timer: Timer): string {
+  return `Time's up! ${timerDoneText(timer)}`;
+}
+
+/** How long the "timer is done" notice stays: shorter than an answer. */
+export const TIMER_NOTICE_MS = 6_000;
