@@ -22,7 +22,7 @@ const SEARCH_INSTRUCTION = [
   SERVINGS_RULE,
   "If the request is vague or not quite a dish, find the closest sensible dish.",
   "Don't prefer any particular website: pick whichever result best fits the request.",
-  "Set source_site to the domain of the website the recipe is from.",
+  "Set source_site to the recipe website's own domain, e.g. from its page address, never a Google link.",
   RECIPE_WRITING_RULES,
 ].join("\n");
 
@@ -38,7 +38,7 @@ const WRITE_INSTRUCTION = [
 const FOUND_RECIPE_JSON_SCHEMA = {
   type: "object",
   properties: {
-    source_site: { type: "string", description: "Domain of the website the recipe is from" },
+    source_site: { type: "string", description: "The recipe website's own domain, not a Google link" },
     recipe: RECIPE_DRAFT_JSON_SCHEMA,
   },
   required: ["source_site", "recipe"],
@@ -107,7 +107,9 @@ export async function writeRecipe(ai, input, abortSignal) {
  */
 export function sourceOf(queries, site) {
   const name = bareDomain(site ?? "");
-  return queries.length > 0 && name ? { name } : null;
+  // Google's own redirect links (vertexaisearch.cloud.google.com) aren't the recipe's site.
+  const isGoogle = /(^|\.)google\.[a-z.]+$/.test(name) || name.includes("vertexaisearch");
+  return queries.length > 0 && name && !isGoogle ? { name } : null;
 }
 
 function bareDomain(text) {

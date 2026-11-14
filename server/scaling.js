@@ -80,10 +80,17 @@ const FAHRENHEIT_IN_TEXT = new RegExp(
 const GAS_MARK = /\bgas mark\s*(\d)\b/gi;
 const GAS_MARK_CELSIUS = { 1: 140, 2: 150, 3: 170, 4: 180, 5: 190, 6: 200, 7: 220, 8: 230, 9: 240 };
 
+// A Celsius temperature the AI wrote, to tidy: "177°C", "177 degrees C/Celsius".
+const CELSIUS_IN_TEXT = new RegExp(
+  String.raw`(?<![\d.,])(${NUMBER})\s*(?:[°º]\s*C\b|[Dd]egrees?\s+(?:C\b|[Cc]elsius\b))`,
+  "g",
+);
+
 /**
  * "Bake at 350°F" → "Bake at 180°C", "375 degrees F" → "190°C", "gas mark 6" → "200°C".
  * Oven temperatures (250°F and up) round to the nearest 10°C like an oven dial; lower ones
- * (a meat's core temperature) to the degree: "145°F" → "63°C". Celsius text is unchanged.
+ * (a meat's core temperature) to the degree: "145°F" → "63°C". Celsius oven temperatures
+ * that an exact conversion left uneven are rounded to the nearest 5: "177°C" → "175°C".
  */
 export function toCelsiusInText(text) {
   return text
@@ -91,7 +98,11 @@ export function toCelsiusInText(text) {
       const values = second === undefined ? [first] : [first, second];
       return `${values.map((f) => celsius(Number(f))).join("–")}°C`;
     })
-    .replace(GAS_MARK, (match, mark) => (GAS_MARK_CELSIUS[mark] ? `${GAS_MARK_CELSIUS[mark]}°C` : match));
+    .replace(GAS_MARK, (match, mark) => (GAS_MARK_CELSIUS[mark] ? `${GAS_MARK_CELSIUS[mark]}°C` : match))
+    .replace(CELSIUS_IN_TEXT, (match, value) => {
+      const c = Number(value);
+      return c >= 100 && c % 5 !== 0 ? `${Math.round(c / 5) * 5}°C` : match;
+    });
 }
 
 function celsius(fahrenheit) {

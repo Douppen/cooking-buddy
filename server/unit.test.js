@@ -110,6 +110,9 @@ test("temperatures in text become Celsius", () => {
   assert.equal(toCelsiusInText("Bake at 325-350 °F."), "Bake at 160–180°C.");
   assert.equal(toCelsiusInText("Cook until 145°F inside."), "Cook until 63°C inside.");
   assert.equal(toCelsiusInText("Bake at gas mark 6."), "Bake at 200°C.");
+  // Uneven Celsius oven temperatures from an exact conversion become dial settings.
+  assert.equal(toCelsiusInText("Preheat to 177°C."), "Preheat to 175°C.");
+  assert.equal(toCelsiusInText("Bake at 191 degrees Celsius"), "Bake at 190°C");
   // Left alone: Celsius already, and numbers that aren't temperatures.
   for (const text of ["Bake at 200°C (180°C fan).", "Add 2 eggs and 3 Fuji apples.", "Grade F 2 flour"]) {
     assert.equal(toCelsiusInText(text), text);
@@ -136,6 +139,8 @@ test("a web recipe's source is the site Gemini names, only if it searched", () =
   assert.deepEqual(sourceOf(queries, "https://www.BBCGoodFood.com/recipes/x"), { name: "bbcgoodfood.com" });
   assert.equal(sourceOf([], "bbcgoodfood.com"), null); // no search: no source
   assert.equal(sourceOf(queries, ""), null);
+  assert.equal(sourceOf(queries, "vertexaisearch.cloud.google.com"), null); // Google's link, not a site
+  assert.equal(sourceOf(queries, "https://www.google.com/search?q=x"), null);
   // The source stays on the recipe through toRecipe (and so through edits).
   const source = { name: "bbcgoodfood.com" };
   const kept = toRecipe(recipeToDraft(recipe), { recipe_id: "gen-x", origin: "generated", edits: ["x"], source });

@@ -56,7 +56,7 @@ export const RECIPE_WRITING_RULES = [
   "- Ingredient names are plain and include prep, e.g. 'Garlic cloves, thinly sliced'.",
   "- Give 0-2 common substitutes per ingredient. Set optional to true only for things the dish works without (garnishes, extras).",
   "- Steps are in cooking order, one action each, at most 15 words, readable at a glance on smart glasses.",
-  "- Put heat levels and times in the step text. Set timer_sec when a step has waiting or cooking time, otherwise null.",
+  "- Every step that cooks, bakes, rests, chills or waits says how long in its text (e.g. 'Bake 10-12 min until golden'), and its heat level. Set timer_sec for those steps, otherwise null.",
   "- Temperatures always in Celsius, written like '200°C' (fan ovens: '180°C fan'). Convert °F and gas marks from any source. Lengths in cm or mm.",
   "- visual_cues: 0-2 short phrases describing what the step looks like when done.",
 ].join("\n");
