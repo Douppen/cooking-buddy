@@ -340,14 +340,25 @@ test("a recipe change gets a standard answer, not Gemini's words", () => {
     answer: "Swapped butter for olive oil.",
     changeSummary: "swapped butter for olive oil",
     draft,
+    servings: null,
   });
   assert.equal(toAnswer({ change_summary: "Swapped butter for oil", answer: "Use oil now!", recipe: draft }).answer, "Swapped butter for oil.");
   assert.deepEqual(toAnswer({ change_summary: "", answer: " Fry for 3 minutes. " }), {
     answer: "Fry for 3 minutes.",
     changeSummary: "",
     draft: null,
+    servings: null,
   });
   assert.equal(toAnswer({ change_summary: "", answer: "Yes.", recipe: draft }).draft, null); // no summary: no change
+  // "Make it for 6": new servings only, within 1-8.
+  assert.deepEqual(toAnswer({ change_summary: "", servings: 6, answer: "" }), {
+    answer: "Scaled to 6 servings.",
+    changeSummary: "Scaled to 6 servings",
+    draft: null,
+    servings: 6,
+  });
+  assert.equal(toAnswer({ change_summary: "Scaled to 20", servings: 20, answer: "" }).servings, 8);
+  assert.equal(toAnswer({ change_summary: "", servings: 0, answer: "Fry it." }).servings, null);
   assert.throws(() => toAnswer({ change_summary: "", answer: "" }));
 });
 

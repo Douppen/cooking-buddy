@@ -14,7 +14,9 @@
 //                Answers use them; the recipe stays metric (a changed one too).
 //   image        optional: { mime_type: "image/jpeg" | "image/png" | "image/webp", data: base64 }
 // Response: { answer, model, ms } plus, when the recipe changed, { recipe, change_summary }:
-//   the whole updated recipe (same recipe_id, change_summary appended to edits).
+//   the whole updated recipe (same recipe_id, change_summary appended to edits). "Make it for
+//   6" changes only recipe.servings (1-8), and the app scales the amounts. Then `answer` is
+//   just the summary ("Scaled to 6 servings."): the app shows "Recipe updated".
 //
 // The prompt lives in ai/answer.js, the Gemini client in ai/gemini.js.
 
@@ -74,7 +76,10 @@ export async function handleAsk(req, res) {
     // counts as a failed attempt and the backup request gets a chance.
     const { value, attempt } = await withBackup(
       async (signal) => {
-        const { answer, changeSummary, draft } = await answerQuestion(ai, request, signal);
+        const { answer, changeSummary, draft, servings } = await answerQuestion(ai, request, signal);
+        // New servings ("make it for 6") change only the cook's setting on the recipe: the
+        // amounts stay for base_servings and the app scales them.
+        const keptServings = servings ?? current.servings;
         const recipe = draft
           ? toRecipe(draft, {
               recipe_id: current.recipe_id,
@@ -82,9 +87,11 @@ export async function handleAsk(req, res) {
               edits: [...current.edits, changeSummary],
               previous: current,
               source: current.source,
-              servings: current.servings,
+              servings: keptServings,
             })
-          : null;
+          : servings
+            ? { ...current, servings }
+            : null;
         return { answer, recipe, changeSummary };
       },
       { backupAfterMs: EDIT_BACKUP_AFTER_MS, attemptTimeoutMs: 20_000 },

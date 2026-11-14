@@ -45,9 +45,10 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
 - **Saying "I don't have X", "can I skip X" or a command ("swap the butter for oil", "make it
   vegetarian") edits the recipe**: the AI makes the smallest change, gives swapped-in
   ingredients their own amounts, and rewrites the affected steps (names, amounts, times).
-  There's no AI answer then: the server answers with the change summary ("Swapped butter
-  for olive oil."), shown under "RECIPE UPDATED", and the app only says "Recipe updated"
-  (~6–8 s). Both lists show the new recipe; the cook stays on the
+  There's no AI answer then: the app only shows and says "Recipe updated" (~3–8 s; the
+  server's `answer` is the change summary, "Swapped butter for olive oil.", for logs and
+  clients that want it). "Make it for 6", "double it" or "halve it" changes only the
+  recipe's `servings` (1–8, no rewrite, ~1 s), and both lists scale. Both lists show the new recipe; the cook stays on the
   same view. "Do I need X?" answers, and marks X optional when the dish works without it.
 - **Metric or imperial** (a small "Imperial units" switch on `/` between the dish field and the servings, label and toggle only, no row box; kept on the device): every recipe
   stays stored in metric; the app shows amounts in oz/lb/tsp/tbsp/cups and converts °C,

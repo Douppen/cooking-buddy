@@ -90,7 +90,7 @@ export function Cooking({
         if (controller.signal.aborted) return;
         if (changed) onRecipeChange(changed);
         dispatch({type: 'answered', answer, changed: Boolean(changed)});
-        // A change shows what changed under "RECIPE UPDATED"; out loud, just that.
+        // A change (new ingredients and steps, or new servings) only says "Recipe updated".
         speak(changed ? 'Recipe updated.' : answer);
       })
       .catch(err => {
@@ -165,9 +165,11 @@ export function Cooking({
       <div className="answer-dock" aria-live="polite">
         {shown && (
           <>
-            <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
-              {shown.label}
-            </TextView>
+            {shown.label && (
+              <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
+                {shown.label}
+              </TextView>
+            )}
             <TextView as="p" textStyle={TextStyle.BODY2_EMPHASIZED}>
               {shown.text}
             </TextView>

@@ -27,6 +27,7 @@ const SYSTEM_INSTRUCTION = [
   "- A change that touches several ingredients ('make it vegetarian', 'dairy free') changes all of them.",
   "- Keep base_servings and write amounts for base_servings, like the recipe JSON you are given.",
   "- Return the whole updated recipe in `recipe` and a few words in `change_summary`, e.g. 'Swapped butter for olive oil'. Leave `answer` empty: the app says 'Recipe updated' itself.",
+  "When the cook asks to cook for a different number of people or servings ('make it for 6', 'scale it to 2 servings', 'double it' = twice the servings now, 'halve it'), set `servings` to the new number and leave out `recipe` (the app scales the amounts itself), with a few words in `change_summary`, e.g. 'Scaled to 6 servings'. Otherwise set `servings` to 0.",
   "If they ask whether they need an ingredient: answer, and if the dish works without it, return the recipe with it marked optional.",
   "For ordinary questions, write `answer`, leave out `recipe` and set `change_summary` to an empty string.",
   "",
@@ -44,11 +45,12 @@ const RESPONSE_JSON_SCHEMA = {
   type: "object",
   properties: {
     change_summary: { type: "string", description: "A few words on how the recipe changed, or empty" },
+    servings: { type: "integer", description: "The new number of servings the cook asked for, or 0" },
     answer: { type: "string", description: "For a question: one or two short sentences, read aloud. Empty when the recipe changed" },
     recipe: { ...RECIPE_DRAFT_JSON_SCHEMA, description: "The whole updated recipe, only if it changed" },
   },
-  required: ["change_summary", "answer"],
-  propertyOrdering: ["change_summary", "answer", "recipe"],
+  required: ["change_summary", "servings", "answer"],
+  propertyOrdering: ["change_summary", "servings", "answer", "recipe"],
 };
 
 /**
@@ -57,8 +59,9 @@ const RESPONSE_JSON_SCHEMA = {
  *           unit_system?: 'metric' | 'imperial',
  *           image?: { mime_type: string, data: string } }} request  a validated /api/ask body
  * @param {AbortSignal} [abortSignal]  cancels the call (used by withBackup in gemini.js)
- * @returns {Promise<{ answer: string, changeSummary: string, draft: object | null }>}
- *   draft is the changed recipe (see RecipeDraftSchema), or null when nothing changed
+ * @returns {Promise<{ answer: string, changeSummary: string, draft: object | null, servings: number | null }>}
+ *   draft is the changed recipe (see RecipeDraftSchema), or null when nothing changed;
+ *   servings is the new number of servings the cook asked for ("make it for 6"), or null
  */
 export async function answerQuestion(ai, { recipe, step_index, question, servings, unit_system, image }, abortSignal) {
   const parts = [];
@@ -104,20 +107,27 @@ export async function answerQuestion(ai, { recipe, step_index, question, serving
   return toAnswer(parsed);
 }
 
+// The app's servings setting goes from 1 to 8.
+const MAX_SERVINGS = 8;
+
 /**
- * Gemini's reply as { answer, changeSummary, draft }. A change gets a standard answer, the
- * summary as a sentence ("Swapped butter for olive oil."), not Gemini's words: the app shows
- * it under "RECIPE UPDATED" and says "Recipe updated".
+ * Gemini's reply as { answer, changeSummary, draft, servings }. A change (a new recipe, or
+ * new servings) gets a standard answer, the summary as a sentence ("Swapped butter for olive
+ * oil."), not Gemini's words: the app only shows and says "Recipe updated".
  */
 export function toAnswer(parsed) {
   const changeSummary = String(parsed.change_summary ?? "").trim().replace(/[.!]+$/, "");
-  if (parsed.recipe && changeSummary) {
-    const answer = `${changeSummary.charAt(0).toUpperCase()}${changeSummary.slice(1)}.`;
-    return { answer, changeSummary, draft: parsed.recipe };
+  const asked = Math.round(Number(parsed.servings));
+  const servings = Number.isFinite(asked) && asked >= 1 ? Math.min(asked, MAX_SERVINGS) : null;
+  const draft = parsed.recipe && changeSummary ? parsed.recipe : null;
+  if (draft || servings) {
+    const summary = changeSummary || `Scaled to ${servings} servings`;
+    const answer = `${summary.charAt(0).toUpperCase()}${summary.slice(1)}.`;
+    return { answer, changeSummary: summary, draft, servings };
   }
   const answer = String(parsed.answer ?? "").trim();
   if (!answer) throw new Error("empty answer");
-  return { answer, changeSummary: "", draft: null };
+  return { answer, changeSummary: "", draft: null, servings: null };
 }
 
 // The recipe as plain text: amounts scaled to `servings` in the units the cook sees,

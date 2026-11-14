@@ -61,13 +61,15 @@ export function cookingReducer(state: CookingState, action: CookingAction): Cook
  * The answer shown above the ask field (and read aloud), or null when there's none. It
  * stays on both views for ANSWER_VISIBLE_MS, then goes away.
  */
-export function answerText(mode: Mode): {label: string; text: string} | null {
+export function answerText(mode: Mode): {label: string | null; text: string} | null {
   switch (mode.kind) {
     case 'idle':
     case 'asking':
       return null;
     case 'answer':
-      return {label: mode.changed ? 'RECIPE UPDATED' : 'ANSWER', text: mode.answer};
+      // A change ("swap the butter for oil", "make it for 6") shows only that it happened:
+      // both lists already show the new recipe.
+      return mode.changed ? {label: null, text: 'Recipe updated'} : {label: 'ANSWER', text: mode.answer};
     case 'error':
       return {label: 'NO ANSWER', text: mode.message};
   }
