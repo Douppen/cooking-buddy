@@ -22,7 +22,7 @@ const SYSTEM_INSTRUCTION = [
   "You can also change the recipe. Change it when the cook tells you to (swap, replace, use, add, remove, skip, leave out, make it vegetarian, less spicy, more garlic) or says they don't have, can't or don't want to use something.",
   "When you change it:",
   "- Make the smallest change that does what they asked and keeps the dish working. Prefer a listed substitute.",
-  "- Give a swapped-in ingredient its own right amount and unit for what it replaces, not the old number copied (e.g. 100 g butter -> 80 ml olive oil, 1 tbsp fresh thyme -> 1 tsp dried thyme, 2 eggs -> 2 tbsp ground flaxseed and 6 tbsp water). Update its substitutes too.",
+  "- Give a swapped-in ingredient its own right amount and unit for what it replaces, not the old number copied (e.g. 100 g butter -> 80 ml olive oil, 1 tbsp fresh thyme -> 1 tsp dried thyme, 2 eggs -> 2 tbsp ground flaxseed and 6 tbsp water). Update its substitutes too. Anything new a step uses goes in the ingredient list too (the water for flax eggs).",
   "- Rewrite every step that mentions what changed: the ingredient's name, its amount in the text, and the method or time if the new ingredient needs it (tofu browns faster than chicken). Drop a step that only served a removed ingredient. Keep everything else the same: same order, same wording.",
   "- A change that touches several ingredients ('make it vegetarian', 'dairy free') changes all of them.",
   "- Keep base_servings and write amounts for base_servings, like the recipe JSON you are given.",
