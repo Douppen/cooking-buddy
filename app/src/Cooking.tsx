@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useReducer, useRef, useState} from 'react';
 import {
+  PaginationIndicator,
+  PaginationMode,
   Pager,
   PagerPage,
   ScrollView,
@@ -25,6 +27,7 @@ import {TimerDock} from './TimerDock';
 import {CHIME_MS, playChime, unlockChime} from './chime';
 import {TIMER_DONE_VISIBLE_MS, applyTimerCommand, markDone, timerDoneSpeech, type Timer} from './timers';
 import type {UnitSystem} from './units';
+import {showAskHint} from './devToolbar';
 
 // Cooking one recipe: the ingredients, and one swipe right, all the steps. Below both, a
 // field for questions or changes ("I don't have eggs"); the answer shows above it. A change
@@ -49,6 +52,13 @@ export function Cooking({
   const lastExchange = useRef<Exchange | undefined>(undefined);
   // Timers the cook started by voice (TimerDock shows them counting down).
   const [timers, setTimers] = useState<Timer[]>([]);
+
+  // Demo aid on a laptop screen only (devToolbar.ts): a note beside the window about asking.
+  // Web-only, a native port leaves it out.
+  useEffect(() => {
+    showAskHint(true);
+    return () => showAskHint(false);
+  }, []);
 
   useEffect(() => {
     if (!timers.length) return;
@@ -159,17 +169,20 @@ export function Cooking({
 
   const shown = answerText(state.mode);
 
+  const page = VIEWS.indexOf(state.view);
+
   return (
     <div className="cooking-shell">
       <Pager
         className="cooking-views"
-        currentPageIndex={VIEWS.indexOf(state.view)}
+        currentPageIndex={page}
         onPageChange={index => dispatch({type: 'show', view: VIEWS[index]})}
         aria-label={recipe.title}
       >
         <PagerPage>
           <ScrollView tabIndex={0} ariaLabel={`${recipe.title}: ingredients`}>
             <div className="content-inset">
+              <ViewTabs page={0} />
               <div className="recipe-heading">
                 <TextView as="h1" textStyle={TextStyle.BODY2_EMPHASIZED}>
                   {recipe.title}
@@ -187,15 +200,13 @@ export function Cooking({
                   </li>
                 ))}
               </ul>
-              <TextView as="p" textStyle={TextStyle.META2} textColor={TextColor.SECONDARY}>
-                Swipe right for the steps
-              </TextView>
             </div>
           </ScrollView>
         </PagerPage>
         <PagerPage>
           <ScrollView tabIndex={0} ariaLabel={`${recipe.title}: steps`}>
             <div className="content-inset">
+              <ViewTabs page={1} />
               <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
                 {`Steps · ${recipe.steps.length}`}
               </TextView>
@@ -238,7 +249,7 @@ export function Cooking({
       <div className="ask-dock">
         <AskField
           text={question}
-          hint="Ask, swap or set a timer"
+          hint="Ask, swap, or set timer"
           onTextChange={setQuestion}
           onSend={send}
           busy={busy}
@@ -247,6 +258,30 @@ export function Cooking({
           maxLength={500}
         />
       </div>
+    </div>
+  );
+}
+
+// Which view this is, and which way to swipe for the other one: "Ingredients • ○ Steps ›".
+// The first line of each list, so it scrolls away with it. Not focusable.
+function ViewTabs({page}: {page: number}) {
+  return (
+    <div className="view-tabs" aria-hidden="true">
+      <TextView
+        as="span"
+        textStyle={page === 0 ? TextStyle.META1_EMPHASIZED : TextStyle.META1}
+        textColor={page === 0 ? TextColor.PRIMARY : TextColor.SECONDARY}
+      >
+        {page === 0 ? 'Ingredients' : '‹ Ingredients'}
+      </TextView>
+      <PaginationIndicator mode={PaginationMode.DOTS} pageCount={VIEWS.length} currentPage={page} />
+      <TextView
+        as="span"
+        textStyle={page === 1 ? TextStyle.META1_EMPHASIZED : TextStyle.META1}
+        textColor={page === 1 ? TextColor.PRIMARY : TextColor.SECONDARY}
+      >
+        {page === 1 ? 'Steps' : 'Steps ›'}
+      </TextView>
     </div>
   );
 }

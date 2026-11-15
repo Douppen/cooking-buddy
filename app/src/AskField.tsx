@@ -1,22 +1,16 @@
-import {useEffect, useRef, type KeyboardEvent} from 'react';
+import {useRef, type KeyboardEvent} from 'react';
 import {InputTextView} from '@wearables-ui-toolkit/mrbd';
 
-// The ask field on home and while cooking, with its send button (➤) to the right. On the
-// glasses a pinch on the field opens the system composer (dictation, handwriting, keyboard),
-// which hands back the whole text with no Enter, so sending needs its own target:
-//   pinch the field   say it (again: the composer opens with the text)
-//   (text arrives)    focus moves to ➤ by itself
-//   pinch ➤           send
-//   swipe left on ➤   back to the field, to say it again
-// On a laptop, Enter in the field still sends, and focus waits for a pause in typing.
-// Native: a text row that starts dictation, and a send button that takes focus once the
-// transcript is in.
+// The ask field on home and while cooking, with its send button (➤) to the right. Enter in
+// the field sends, and so does pinching or clicking ➤. Focus never moves to ➤ by itself:
+// the cook stays in the field while typing (an automatic jump after a pause was removed on
+// 2026-11-15).
+//   swipe left on ➤   back to the field
+// Native: a text row that starts dictation, and a send button next to it.
 
 /** Shown above the field while there's text to send. */
-export const SEND_HINT = 'Pinch ➤ to send, or swipe left to say it again.';
+export const SEND_HINT = 'Press Enter or ➤ to send.';
 
-// The composer hands over the whole text at once; typing comes letter by letter.
-const FOCUS_SEND_AFTER_MS = 900;
 const SEND_LABEL = 'Send';
 
 export function AskField({
@@ -42,15 +36,6 @@ export function AskField({
   // The toolkit's ➤ is a focusable element labelled with actionLabel, not a <button>.
   const sendButton = () => box.current?.querySelector<HTMLElement>(`[aria-label="${SEND_LABEL}"]`) ?? null;
   const field = () => box.current?.querySelector<HTMLTextAreaElement>('textarea') ?? null;
-
-  // New text while the field has focus: move to ➤, so the next pinch sends.
-  useEffect(() => {
-    if (!text.trim() || busy) return;
-    const input = field();
-    if (!input || document.activeElement !== input) return;
-    const timer = setTimeout(() => sendButton()?.focus(), FOCUS_SEND_AFTER_MS);
-    return () => clearTimeout(timer);
-  }, [text, busy]);
 
   // Swipe left on ➤: back to the field. Stopped here, so the cooking screen doesn't also
   // take it as "previous view".

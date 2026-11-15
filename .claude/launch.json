@@ -13,6 +13,17 @@
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/Users/simonnars/Downloads/junction-2026-514714-909bfbf794ef.json"
       }
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "app",
+        "run",
+        "dev"
+      ],
+      "port": 5173
     }
   ]
 }

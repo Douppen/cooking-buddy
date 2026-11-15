@@ -186,9 +186,9 @@ export function HomePage() {
   const oneLine = status.kind === 'idle' || status.kind === 'thinking' || status.kind === 'fetching';
 
   return (
-    <Page headerText="Cooking Buddy" enableSystemBarInset={false}>
+    <Page headerText="Yes, Chef" enableSystemBarInset={false}>
       <div className="action-page-shell">
-        <VerticalList insetForHeader ariaLabel="Cooking Buddy">
+        <VerticalList insetForHeader ariaLabel="Yes, Chef">
           {latest && suggestions.length === 0 && status.kind !== 'answered' && (
             <ListItem
               title={latest.title}

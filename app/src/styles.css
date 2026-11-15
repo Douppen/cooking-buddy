@@ -15,6 +15,309 @@ body {
   overflow: hidden;
 }
 
+/* On a laptop or desktop (anything bigger than the glasses' 600×600), show the app as a
+   600×600 window over a kitchen photo. The glasses never match this, so their display
+   (where black is transparent) is unchanged. Web-only: a native port has no page behind it. */
+@media (min-width: 760px) and (min-height: 700px) {
+  html,
+  body {
+    /* The photo at 60% brightness, so the toolkit's dark boxes sit well on it. */
+    background:
+      linear-gradient(rgb(0 0 0 / 0.4), rgb(0 0 0 / 0.4)),
+      #000 url('/background.webp') center / cover no-repeat;
+  }
+
+  body {
+    display: grid;
+    place-items: center;
+  }
+
+  #root {
+    position: relative;
+    width: 600px;
+    height: 600px;
+    overflow: hidden;
+    border-radius: 32px;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.18),
+      0 0 0 1px rgb(255 255 255 / 0.14),
+      0 30px 90px rgb(0 0 0 / 0.55);
+  }
+
+  /* A see-through pane instead of a black box (unless the dev toolbar's "Solid black
+     window" is on): the toolkit paints its window, page and scroll fades with
+     --uit-color-background-window, so that goes transparent here. */
+  html:not(.solid-window) #root {
+    --uit-color-background-window: transparent;
+    background: transparent;
+    backdrop-filter: blur(1.5px);
+    -webkit-backdrop-filter: blur(1.5px);
+  }
+
+  /* Edge fades are painted in solid black; on glass they'd show as dark bands. */
+  html:not(.solid-window) #root [class*='fadingEdge'],
+  html:not(.solid-window) #root [class*='scrim'],
+  html:not(.solid-window) #root [class*='Vignette'] {
+    display: none;
+  }
+
+  /* Key help at the very top of the screen (devToolbar.ts), like a keyboard legend: arrows,
+     return, esc. Fixed, so the window stays centered. The toolbar switch hides it. */
+  .key-help {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: flex-end;
+    gap: 40px;
+    color: #fff;
+    font: 600 13px/1 system-ui, -apple-system, sans-serif;
+  }
+
+  html.solid-window .key-help {
+    display: none;
+  }
+
+  .key-help__group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .key-help__arrows {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 3px;
+  }
+
+  .key-help__up {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
+  .key-help__arrows kbd:not(.key-help__up) {
+    grid-row: 2;
+  }
+
+  .key-help kbd {
+    display: grid;
+    place-items: center;
+    min-width: 26px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 7px;
+    background: rgb(255 255 255 / 0.16);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+    color: rgb(255 255 255 / 0.85);
+    font: 500 12px/1 system-ui, -apple-system, sans-serif;
+  }
+
+  /* Ask note (devToolbar.ts): on the cooking screen, a small bubble right of the window,
+     pointing at the ask field near its bottom. It fades and slides in a moment after the
+     cooking screen opens (once the page transition settles) and out at once on leaving.
+     × or the toolbar switch hides it. */
+  .ask-hint {
+    position: fixed;
+    left: calc(50% + 300px + 18px);
+    bottom: calc(50% - 300px + 28px);
+    z-index: 1000;
+    display: block;
+    width: min(240px, calc(50% - 300px - 30px));
+    padding: 12px 30px 13px 14px;
+    border-radius: 14px;
+    background: rgb(30 30 32 / 0.92);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 0.4);
+    color: rgb(255 255 255 / 0.75);
+    font: 400 13px/1.4 system-ui, -apple-system, sans-serif;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-10px) scale(0.98);
+    transform-origin: left bottom;
+    pointer-events: none;
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s ease,
+      visibility 0s linear 0.2s;
+  }
+
+  html.demo-cooking:not(.solid-window):not(.ask-hint-closed) .ask-hint {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    pointer-events: auto;
+    transition:
+      opacity 0.4s ease 0.35s,
+      transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.35s,
+      visibility 0s linear 0.35s;
+  }
+
+  /* The tips share one grid cell, so the note keeps the tallest one's size. Switching is a
+     plain fade. Below them: ‹ 1 / 3 ›. */
+  .ask-hint__tips {
+    display: grid;
+  }
+
+  .ask-hint__tip {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .ask-hint__tip--current {
+    opacity: 1;
+  }
+
+  .ask-hint__nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 -4px -6px;
+  }
+
+  .ask-hint__count {
+    min-width: 30px;
+    color: rgb(255 255 255 / 0.5);
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .ask-hint__step {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0 0 2px;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.08);
+    color: rgb(255 255 255 / 0.75);
+    font: 400 17px/1 system-ui, -apple-system, sans-serif;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .ask-hint__step:hover,
+  .ask-hint__step:focus-visible {
+    background: rgb(255 255 255 / 0.18);
+    color: #fff;
+    outline: none;
+  }
+
+  .ask-hint__title {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  /* The point of the bubble, toward the window. */
+  .ask-hint::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    bottom: 18px;
+    border: 7px solid transparent;
+    border-left: 0;
+    border-right-color: rgb(30 30 32 / 0.92);
+  }
+
+  .ask-hint__close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: rgb(255 255 255 / 0.55);
+    font: 400 18px/1 system-ui, -apple-system, sans-serif;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .ask-hint__close:hover,
+  .ask-hint__close:focus-visible {
+    background: rgb(255 255 255 / 0.12);
+    color: #fff;
+    outline: none;
+  }
+
+  /* Dev toolbar (devToolbar.ts): one tiny bare switch, bottom right, outside the glasses
+     app. Plain web UI; the tooltip says what it does. */
+  .dev-toolbar {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    z-index: 1000;
+    display: flex;
+    padding: 4px;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    opacity: 0.45;
+    transition: opacity 0.15s;
+  }
+
+  .dev-toolbar:hover,
+  .dev-toolbar:focus-visible {
+    opacity: 1;
+  }
+
+  .dev-toolbar:focus-visible {
+    outline: 1px solid #2694fe;
+    outline-offset: 1px;
+    border-radius: 8px;
+  }
+
+  .dev-toolbar__switch {
+    position: relative;
+    width: 20px;
+    height: 12px;
+    border-radius: 6px;
+    background: rgb(255 255 255 / 0.25);
+    transition: background 0.15s;
+  }
+
+  .dev-toolbar__switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s;
+  }
+
+  .dev-toolbar[aria-checked='true'] .dev-toolbar__switch {
+    background: rgb(255 255 255 / 0.6);
+  }
+
+  .dev-toolbar[aria-checked='true'] .dev-toolbar__switch::after {
+    transform: translateX(8px);
+  }
+}
+
+/* Too small for the photo and the window (the glasses' own 600×600): no toolbar or key help. */
+@media not ((min-width: 760px) and (min-height: 700px)) {
+  .dev-toolbar,
+  .key-help,
+  .ask-hint {
+    display: none;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -90,6 +393,23 @@ body {
   block-size: 100%;
   min-block-size: 0;
   min-inline-size: 0;
+}
+
+/* Tabs at the top of each cooking list (they scroll with it): "Ingredients  • ○  Steps ›". */
+.view-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--uit-spacing-large);
+  padding-block-end: var(--uit-spacing-medium);
+}
+
+.view-tabs > span {
+  flex: 1;
+}
+
+.view-tabs > span:first-child {
+  text-align: end;
 }
 
 .cooking-views {

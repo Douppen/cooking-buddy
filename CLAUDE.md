@@ -53,10 +53,10 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   to the ingredients, and no further. Swipe up/down scrolls the list; past its end, focus
   moves to the ask field.
 - **Asking (home and cooking, `app/src/AskField.tsx`):** pinch the field to speak (the
-  glasses' composer: dictation, handwriting or keyboard). It hands back the whole text with
-  no Enter, so focus then moves to the **➤ send button** by itself: pinch to send, or swipe
-  left to the field and pinch to say it again. The line above the field says so while
-  there's text. Only the index pinch (Enter) and swipes (arrows) reach a web app; the
+  glasses' composer: dictation, handwriting or keyboard). Enter in the field sends, and so
+  does the **➤ send button**. Focus never jumps to ➤ by itself (it used to, after a 0.9 s
+  pause in typing; removed on 2026-11-15). The line above the field says "Press Enter or ➤
+  to send." while there's text. Only the index pinch (Enter) and swipes (arrows) reach a web app; the
   middle pinch is the system's Back. The cooking field sits under both views. Questions are about **the whole recipe**, not one step: the
   app sends no `step_index` to `/api/ask`.
 - **The answer shows above the ask field** on either view for 15 s and is read aloud.
@@ -303,7 +303,7 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
   that updates every second". Native re-sends the whole screen per update over Bluetooth:
   measure whether 1 s ticks are affordable there, else tick every 5–10 s or once a minute.
 - The ask field (`AskField.tsx`): the web app gets no microphone, only the system composer,
-  so sending is a separate ➤ target that takes focus once the text is in. Native (with the
+  so sending is a separate ➤ target next to the field (it no longer takes focus by itself). Native (with the
   phone's speech recognition) can make it one record button: pinch to record, pinch to send.
 - Home (`app/src/pages/HomePage.tsx`, 2026-11-14) is built to fit 600×600 with no scrolling:
   last recipe row, dish field, units switch, servings box. The toolkit's slider `ListItem`
