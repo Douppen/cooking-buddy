@@ -39,8 +39,8 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   (named by `/api/home`, saved on the recipe as `cuisine`) brings its own cook for that
   recipe only: every answer, change, error and timer while cooking it is in their voice.
   When a recipe opens from home, the chef hands over first: "Alright, here's your butter
-  chicken recipe. Now let me hand you over to my expert colleague, Pankaj. He knows this dish
-  inside out so just ask away if you have any questions." (made while the
+  chicken recipe. Now let me hand you over to my expert colleague, Pankaj. This dish is his
+  specialty." (made while the
   recipe is found, so it plays the moment the recipe opens; said once, not on reload or
   Back). The cooks: Pankaj (Indian), Uncle Wei (Chinese), Giuseppe (Italian, a chef
   from Naples with a heavy Italian accent), Abuela Rosa (Mexican), Chef Jacques (French),
@@ -56,8 +56,8 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
 - **Asking (home and cooking, `app/src/AskField.tsx`):** pinch the field to speak (the
   glasses' composer: dictation, handwriting or keyboard). Enter in the field sends, and so
   does the **➤ send button**. Focus never jumps to ➤ by itself (it used to, after a 0.9 s
-  pause in typing; removed on 2026-11-15). The line above the field says "Press Enter or ➤
-  to send." while there's text. Only the index pinch (Enter) and swipes (arrows) reach a web app; the
+  pause in typing; removed on 2026-11-15). On home, the line above the field says "Press Enter or ➤
+  to send." while there's text (not while cooking). Only the index pinch (Enter) and swipes (arrows) reach a web app; the
   middle pinch is the system's Back. The cooking field sits under both views. Questions are about **the whole recipe**, not one step: the
   app sends no `step_index` to `/api/ask`.
 - **The answer shows above the ask field** on either view for 15 s and is read aloud.

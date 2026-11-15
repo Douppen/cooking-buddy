@@ -21,7 +21,7 @@ import {
   initialCookingState,
   stepText,
 } from './cookingState';
-import {AskField, SEND_HINT} from './AskField';
+import {AskField} from './AskField';
 import {cookName, playHandover, speak, stopSpeaking, voiceOf} from './speech';
 import {TimerDock} from './TimerDock';
 import {CHIME_MS, playChime, unlockChime} from './chime';
@@ -230,12 +230,8 @@ export function Cooking({
       </Pager>
       <TimerDock timers={timers} />
       <div className="answer-dock" aria-live="polite">
-        {/* With text to send, how to send it; then the answer. */}
-        {question.trim() && !busy ? (
-          <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
-            {SEND_HINT}
-          </TextView>
-        ) : shown && (
+        {/* The answer, if any (no "how to send" hint here: home has one). */}
+        {shown && (
           <>
             {shown.label && (
               <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
