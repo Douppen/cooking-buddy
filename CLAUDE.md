@@ -19,17 +19,18 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   I make with rice and eggs?"): a short answer (at most 30 words), read aloud, with up to 3
   dishes as rows ("Get the recipe") that ask for that recipe when pinched. Follow-ups work
   ("the second one"): the last 10 turns go along until a recipe opens. While an answer
-  shows, the title, units switch, servings box and last-recipe row step aside so it fits 600×600.
-  Anything not about food: "Let's keep it to food…". There is no recipe picker and no built-in recipes. Above the field, only
-  the **most recent recipe** as one row ("Back to your recipe"), so a cook who left cooking
-  by accident (system Back) pinches it to return. A new dish simply replaces it on top.
-  Older recipes stay saved on the device (for a "previous recipes" list later) but aren't shown.
+  shows, the title, units switch, servings box and recipe history row step aside so it fits 600×600.
+  Anything not about food: "Let's keep it to food…". There are no built-in recipes. Above the field, once a recipe is saved, one row
+  **"Recipe history"** ("Latest: Butter Chicken") opens `/recipes` (`pages/RecipesPage.tsx`):
+  every recipe saved on the device (up to 20), newest first, "4 servings · Pankaj" under
+  each; pinching one opens it for cooking, Back returns to the list. A cook who left cooking
+  by accident (system Back) gets back in two pinches.
 - **Servings:** a box on home under the dish field, styled like a list row ("‹ 2 servings ›",
   "Swipe left or right to change"), 2 by default each time home opens, 1 to 8. Only while
   it has focus, **swipe right** adds one and **swipe left** takes one away. Saying a number
   with the dish ("lasagna for 4", "yes, for six people") sets the box to it before the recipe
   is fetched, so the cook sees it change. The new recipe is scaled to it (see "Servings are the app's job" below). Focus order on home:
-  last recipe, dish field, servings, units switch, voice switch.
+  recipe history, dish field, servings, units switch, voice switch.
 - **Voice on or off:** a "Voice" switch next to "Imperial units" (same row, kept on the
   device, on by default). On: answers are read aloud from `POST /api/speak` (MP3, EU).
   The answer's text waits for its voice (~2 s, "Thinking…" meanwhile) and shows the moment
@@ -313,7 +314,7 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
   phone's speech recognition) can make it one record button: pinch to record, pinch to send.
 - Home (`app/src/pages/HomePage.tsx`, 2026-11-14) is built to fit 600×600 with no scrolling:
   title ("Yes, Chef for Meta glasses", plain text: the toolkit header's chip looked like a
-  button), last recipe row, dish field, servings box, units switch. The toolkit's slider `ListItem`
+  button), recipe history row, dish field, servings box, units switch. The toolkit's slider `ListItem`
   hides its title, so the servings box is a toolkit `Container` that takes left/right
   itself while focused. Native: a focusable row that handles left/right swipes. The units
   and voice switches are toolkit `Switch`es in `Container`s whose surface only shows when

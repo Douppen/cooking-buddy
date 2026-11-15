@@ -345,10 +345,20 @@ body {
   grid-template-rows: auto minmax(0, 1fr) auto auto;
 }
 
-.brand {
+.brand,
+.page-title {
   margin: 0;
   padding: var(--uit-spacing-large) var(--uit-spacing-large) 0;
   text-align: center;
+}
+
+/* Recipe history (/recipes): the title, then the list of saved recipes. */
+.recipes-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  block-size: 100%;
+  min-block-size: 0;
+  gap: var(--uit-spacing-small);
 }
 
 .ask-dock {

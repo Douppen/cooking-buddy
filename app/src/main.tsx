@@ -10,9 +10,11 @@ import {mountDevToolbar} from './devToolbar';
 import {RecipesProvider} from './RecipesContext';
 import {CookPage} from './pages/CookPage';
 import {HomePage} from './pages/HomePage';
+import {RecipesPage} from './pages/RecipesPage';
 import './styles.css';
 
-// Say a dish, or reopen the last recipe (/), then cook it (/cook/:id).
+// Say a dish, or reopen the last recipe (/), or pick one of your recipes (/recipes), then
+// cook it (/cook/:id).
 function Root() {
   return (
     <RecipesProvider>
@@ -23,6 +25,7 @@ function Root() {
               {({location}) => (
                 <Routes location={location}>
                   <Route path="/" element={<HomePage />} />
+                  <Route path="/recipes" element={<RecipesPage />} />
                   <Route path="/cook/:id" element={<CookPage />} />
                 </Routes>
               )}

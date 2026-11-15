@@ -205,9 +205,9 @@ export function HomePage() {
         <VerticalList ariaLabel="Yes, Chef">
           {latest && suggestions.length === 0 && status.kind !== 'answered' && (
             <ListItem
-              title={latest.title}
-              subtitle="Back to your recipe"
-              onClick={() => navigate(`/cook/${latest.recipe_id}`)}
+              title="Recipe history"
+              subtitle={`Latest: ${latest.title}`}
+              onClick={() => navigate('/recipes')}
             />
           )}
           {suggestions.map(suggestion => (

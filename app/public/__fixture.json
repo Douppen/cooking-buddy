@@ -1,0 +1,22 @@
+{
+  "recipe_id": "buttermilk-pancakes",
+  "title": "Buttermilk Pancakes",
+  "base_servings": 4,
+  "ingredients": [
+    { "id": "flour", "name": "Plain flour", "base_amount": 250, "base_unit": "g", "substitutes": ["spelt flour"] },
+    { "id": "sugar", "name": "Sugar", "base_amount": 25, "base_unit": "g", "substitutes": ["honey", "maple syrup"] },
+    { "id": "baking_powder", "name": "Baking powder", "base_amount": 10, "base_unit": "g", "substitutes": [] },
+    { "id": "salt", "name": "Salt", "base_amount": 3, "base_unit": "g", "substitutes": [] },
+    { "id": "buttermilk", "name": "Buttermilk", "base_amount": 480, "base_unit": "ml", "substitutes": ["milk with 1 tbsp lemon juice per 250 ml, rested 5 minutes", "thinned plain yogurt"] },
+    { "id": "egg", "name": "Egg", "base_amount": 2, "base_unit": "unit", "substitutes": [], "whole": true },
+    { "id": "butter", "name": "Butter, melted", "base_amount": 30, "base_unit": "g", "substitutes": ["neutral oil"] }
+  ],
+  "steps": [
+    { "index": 0, "title": "Mix dry", "instruction": "Whisk flour, sugar, baking powder and salt in a large bowl.", "visual_cues": ["bowl of dry flour mixture"], "timer_sec": null },
+    { "index": 1, "title": "Mix wet", "instruction": "Whisk buttermilk and eggs in a jug.", "visual_cues": ["jug of pale liquid"], "timer_sec": null },
+    { "index": 2, "title": "Melt butter", "instruction": "Melt the butter, then whisk it into the wet mix.", "visual_cues": ["melted butter"], "timer_sec": 60 },
+    { "index": 3, "title": "Combine", "instruction": "Pour wet into dry and stir until just combined; lumps are fine.", "visual_cues": ["thick lumpy batter"], "timer_sec": null },
+    { "index": 4, "title": "Rest", "instruction": "Let the batter rest while the pan heats.", "visual_cues": ["batter with bubbles"], "timer_sec": 300 },
+    { "index": 5, "title": "Cook", "instruction": "Cook ladlefuls on medium heat; flip when bubbles pop.", "visual_cues": ["bubbles on pancake surface", "golden underside"], "timer_sec": 120 }
+  ]
+}
