@@ -186,9 +186,23 @@ export function HomePage() {
   const oneLine = status.kind === 'idle' || status.kind === 'thinking' || status.kind === 'fetching';
 
   return (
-    <Page headerText="Yes, Chef" enableSystemBarInset={false}>
-      <div className="action-page-shell">
-        <VerticalList insetForHeader ariaLabel="Yes, Chef">
+    // No toolkit header: its chip looks like a dark button. The name is plain text on top.
+    <Page showHeader={false} enableSystemBarInset={false}>
+      <div className="action-page-shell home-shell">
+        {/* Steps aside while an answer shows, like the setup controls, so its dish rows fit. */}
+        {status.kind !== 'answered' ? (
+          <h1 className="brand">
+            <TextView as="span" textStyle={TextStyle.BODY2_EMPHASIZED}>
+              Yes, Chef
+            </TextView>{' '}
+            <TextView as="span" textStyle={TextStyle.BODY2_EMPHASIZED} textColor={TextColor.SECONDARY}>
+              for Meta glasses
+            </TextView>
+          </h1>
+        ) : (
+          <div />
+        )}
+        <VerticalList ariaLabel="Yes, Chef">
           {latest && suggestions.length === 0 && status.kind !== 'answered' && (
             <ListItem
               title={latest.title}

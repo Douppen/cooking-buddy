@@ -19,7 +19,7 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   I make with rice and eggs?"): a short answer (at most 30 words), read aloud, with up to 3
   dishes as rows ("Get the recipe") that ask for that recipe when pinched. Follow-ups work
   ("the second one"): the last 10 turns go along until a recipe opens. While an answer
-  shows, the units switch, servings box and last-recipe row step aside so it fits 600×600.
+  shows, the title, units switch, servings box and last-recipe row step aside so it fits 600×600.
   Anything not about food: "Let's keep it to food…". There is no recipe picker and no built-in recipes. Above the field, only
   the **most recent recipe** as one row ("Back to your recipe"), so a cook who left cooking
   by accident (system Back) pinches it to return. A new dish simply replaces it on top.
@@ -307,7 +307,8 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
   so sending is a separate ➤ target next to the field (it no longer takes focus by itself). Native (with the
   phone's speech recognition) can make it one record button: pinch to record, pinch to send.
 - Home (`app/src/pages/HomePage.tsx`, 2026-11-14) is built to fit 600×600 with no scrolling:
-  last recipe row, dish field, servings box, units switch. The toolkit's slider `ListItem`
+  title ("Yes, Chef for Meta glasses", plain text: the toolkit header's chip looked like a
+  button), last recipe row, dish field, servings box, units switch. The toolkit's slider `ListItem`
   hides its title, so the servings box is a toolkit `Container` that takes left/right
   itself while focused. Native: a focusable row that handles left/right swipes. The units
   and voice switches are toolkit `Switch`es in `Container`s whose surface only shows when
