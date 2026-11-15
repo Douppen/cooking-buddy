@@ -221,6 +221,25 @@ export function HomePage() {
               dish rows fit the 600×600 display; they're back on the next question. */}
           {status.kind !== 'answered' && (
             <>
+              <Container
+                role="spinbutton"
+                aria-label="Servings"
+                aria-valuemin={MIN_SERVINGS}
+                aria-valuemax={MAX_SERVINGS}
+                aria-valuenow={servings}
+                width="100%"
+                tabIndex={0}
+                onKeyDown={stepServingsOnSwipe}
+              >
+                <div className="servings-box">
+                  <TextView as="p" textStyle={TextStyle.BODY2_EMPHASIZED}>
+                    {servingsLabel}
+                  </TextView>
+                  <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
+                    Swipe left or right to change
+                  </TextView>
+                </div>
+              </Container>
               <div className="units-row">
                 <TextView as="span" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
                   Imperial units
@@ -249,25 +268,6 @@ export function HomePage() {
                   <Switch checked={voiceOn} animated />
                 </Container>
               </div>
-              <Container
-                role="spinbutton"
-                aria-label="Servings"
-                aria-valuemin={MIN_SERVINGS}
-                aria-valuemax={MAX_SERVINGS}
-                aria-valuenow={servings}
-                width="100%"
-                tabIndex={0}
-                onKeyDown={stepServingsOnSwipe}
-              >
-                <div className="servings-box">
-                  <TextView as="p" textStyle={TextStyle.BODY2_EMPHASIZED}>
-                    {servingsLabel}
-                  </TextView>
-                  <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
-                    Swipe left or right to change
-                  </TextView>
-                </div>
-              </Container>
             </>
           )}
         </div>
