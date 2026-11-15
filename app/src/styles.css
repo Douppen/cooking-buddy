@@ -365,6 +365,19 @@ body {
   align-self: stretch;
 }
 
+/* The ask field, with the website's mic button (never on the glasses) to its left. */
+.ask-field {
+  display: flex;
+  align-items: center;
+  gap: var(--uit-spacing-small);
+  min-inline-size: 0;
+}
+
+.ask-field > :last-child {
+  flex: 1;
+  min-inline-size: 0;
+}
+
 /* Home: the servings box, laid out like a list row (title, then a hint). */
 .servings-box {
   display: flex;

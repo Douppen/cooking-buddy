@@ -58,7 +58,12 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   does the **➤ send button**. Focus never jumps to ➤ by itself (it used to, after a 0.9 s
   pause in typing; removed on 2026-11-15). On home, the line above the field says "Press Enter or ➤
   to send." while there's text (not while cooking). Only the index pinch (Enter) and swipes (arrows) reach a web app; the
-  middle pinch is the system's Back. The cooking field sits under both views. Questions are about **the whole recipe**, not one step: the
+  middle pinch is the system's Back. The cooking field sits under both views.
+  **On the website** (a laptop or phone browser, for demos) a 🎤 button sits left of the
+  field: tap, speak, the words fill the field live, then ➤ has focus (`app/src/listen.ts`,
+  the browser's Web Speech API; Chrome sends the audio to Google to recognise). It never
+  shows on the glasses (detected like the UI Toolkit does: "Greatwhite" or an Android web
+  view), so their flow is unchanged; next to it the field uses a shorter placeholder. Questions are about **the whole recipe**, not one step: the
   app sends no `step_index` to `/api/ask`.
 - **The answer shows above the ask field** on either view for 15 s and is read aloud.
 - **Timers by voice** ("set a timer for 10 minutes", "time the pasta", "start the timer for

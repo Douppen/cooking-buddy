@@ -248,6 +248,7 @@ export function Cooking({
         <AskField
           text={question}
           hint={cook ? `Ask ${cook}` : 'Ask, swap, or set timer'}
+          shortHint={cook ? `Ask ${cook}` : 'Ask or set a timer'}
           onTextChange={setQuestion}
           onSend={send}
           busy={busy}
