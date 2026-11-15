@@ -224,7 +224,7 @@ export function HomePage() {
           <AskField
             text={dish}
             hint="Say a dish, or ask for ideas"
-            shortHint="Say a dish or ask"
+            shortHint="A dish or a question"
             onTextChange={setDish}
             onSend={send}
             busy={busy}
