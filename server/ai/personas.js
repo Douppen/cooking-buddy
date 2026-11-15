@@ -1,4 +1,5 @@
-// The voices of Cooking Buddy: who reads an answer aloud (POST /api/speak, ai/speech.js).
+// The voices of Yes, Chef: who reads an answer aloud (POST /api/speak, ai/speech.js). Who
+// each cook is (story, manner) is in ai/characters.js.
 //
 // Home always talks with the British chef. When the cook picks a dish, /api/home also names
 // its cuisine (sortRequest() in ai/generate.js); the chef then hands over ("...let me hand you

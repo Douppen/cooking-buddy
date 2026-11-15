@@ -6,9 +6,13 @@
 import { convertUnitSystem, scaleIngredients } from "../scaling.js";
 import { MODEL } from "./gemini.js";
 import { RECIPE_DRAFT_JSON_SCHEMA, RECIPE_WRITING_RULES, recipeToDraft } from "./recipeFormat.js";
+import { characterInstruction } from "./characters.js";
+import { personaFor } from "./personas.js";
 
-const SYSTEM_INSTRUCTION = [
-  "You are Cooking Buddy, helping someone who is cooking at home.",
+// Who answers comes first (systemInstruction()): the recipe's cook, with their story; then
+// the rules below.
+const RULES = [
+  "You're helping someone who is cooking this recipe at home.",
   "They wear smart glasses: your answer appears on a small display and is read aloud.",
   "Answer in one or two short sentences, at most 30 words. Plain text only: no markdown, lists or emoji.",
   "Use the recipe below. The cook sees the whole recipe at once, so answer about the whole recipe:",
@@ -36,6 +40,15 @@ const SYSTEM_INSTRUCTION = [
   "",
   RECIPE_WRITING_RULES,
 ].join("\n");
+
+/**
+ * The system instruction for a recipe: its cook (its cuisine's, or Giuseppe for an older
+ * clearly Italian recipe without one, else the chef), then the rules. The same cook reads
+ * the answer aloud (ai/speech.js).
+ */
+export function systemInstruction(recipe) {
+  return `${characterInstruction(personaFor(recipe.cuisine, recipe.title))}\n\n${RULES}`;
+}
 
 // The app shows the ingredient list above in imperial and converts temperatures and lengths
 // in the step text (200°C shows as 400°F, oven temperatures to the nearest 25°F).
@@ -103,7 +116,7 @@ export async function answerQuestion(ai, { recipe, step_index, question, previou
     model: MODEL,
     contents: [{ role: "user", parts }],
     config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
+      systemInstruction: systemInstruction(recipe),
       thinkingConfig: { thinkingLevel: "LOW" }, // quick answers matter more than deep reasoning
       responseMimeType: "application/json",
       responseJsonSchema: RESPONSE_JSON_SCHEMA,

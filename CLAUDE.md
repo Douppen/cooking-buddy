@@ -47,7 +47,14 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   from Naples with a heavy Italian accent), Abuela Rosa (Mexican), Chef Jacques (French),
   Kenji (Japanese), Auntie Mali (Thai), Babushka Olga (all Eastern European food), Bubba
   (American food, an Appalachian hillbilly drawl). Any other cuisine (Greek, say): the chef
-  says "Let's get cooking!" and stays. Names, voices and accents: `server/ai/personas.js`. While cooking, the ask field says "Ask Pankaj" (the recipe's cook; the chef's recipes: "Ask, swap, or set timer"), from a copy of the names in `app/src/speech.ts`. Off: answers on home and while cooking
+  says "Let's get cooking!" and stays. Names, voices and accents: `server/ai/personas.js`. Who
+  they are: `server/ai/characters.js`, a short made-up story per cook (hometown, how they
+  learned, family, a pet hate, how they met the chef, who is called just "Chef" and was once
+  Chef Jacques's commis, hence "Yes, Chef"). The answer prompt starts with the recipe's cook
+  (`systemInstruction()` in `ai/answer.js`), home's with the chef's: they answer as themselves,
+  bring up their story only when asked or when it helps, answer "hello" and "who are you?"
+  in character (on home that's chat, not "keep it to food"), and if sincerely asked, say
+  they're an AI character. Change a cook's story and voice style together. While cooking, the ask field says "Ask Pankaj" (the recipe's cook; the chef's recipes: "Ask, swap, or set timer"), from a copy of the names in `app/src/speech.ts`. Off: answers on home and while cooking
   are text only (`speak()` in `app/src/speech.ts` does nothing).
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the

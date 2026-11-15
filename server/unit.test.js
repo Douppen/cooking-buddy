@@ -12,6 +12,9 @@ import { NotFoodError, namedDish, sourceOf, toFound, toSorted } from "./ai/gener
 import { recipeContext, toAnswer, toTimer } from "./ai/answer.js";
 import { generatedRecipeId, recipeToDraft } from "./ai/recipeFormat.js";
 import { handoverLine, personaFor } from "./ai/personas.js";
+import { systemInstruction } from "./ai/answer.js";
+import { STORIES } from "./ai/characters.js";
+import { CUISINES } from "./models/domain.js";
 
 // A fixed test recipe; the app itself has no built-in recipes (the AI writes them).
 const recipe = RecipeSchema.parse(
@@ -447,4 +450,13 @@ test("the shopping list for the phone: scaled, in the cook's units", () => {
   assert.match(shoppingList(recipe, 4, "imperial").message, /^• 2 cups Buttermilk$/m);
   const ask = toAnswer({ change_summary: "", servings: 0, timer: { action: "none" }, send_list: true, answer: "" });
   assert.equal(ask.sendList, true);
+});
+
+test("each cook has a story, and answers come from the recipe's cook", () => {
+  for (const cuisine of CUISINES) assert.ok(STORIES[personaFor(cuisine)], `story for ${cuisine}`);
+  assert.match(systemInstruction({ ...recipe, cuisine: "indian" }), /^You are Pankaj/);
+  assert.match(systemInstruction({ ...recipe, cuisine: "other" }), /^You are Chef\./);
+  // Older recipes without a cuisine: an Italian title still gets Giuseppe.
+  assert.match(systemInstruction({ ...recipe, title: "Spaghetti Carbonara", cuisine: null }), /^You are Giuseppe/);
+  assert.doesNotMatch(systemInstruction(recipe), /You are Cooking Buddy/);
 });

@@ -19,6 +19,7 @@
 //   own knowledge, in the EU without search.
 
 import { CUISINES, toRecipe } from "../models/domain.js";
+import { characterInstruction } from "./characters.js";
 import { MODEL, SEARCH_MODEL } from "./gemini.js";
 import { RECIPE_DRAFT_JSON_SCHEMA, RECIPE_WRITING_RULES, generatedRecipeId } from "./recipeFormat.js";
 
@@ -27,16 +28,19 @@ import { RECIPE_DRAFT_JSON_SCHEMA, RECIPE_WRITING_RULES, generatedRecipeId } fro
 const SERVINGS_RULE =
   "Keep the recipe's own number of servings as base_servings, with its amounts, even if the cook names a number of people: the app scales recipes itself.";
 
+// Home always talks with the chef (ai/characters.js): his story first, then the sorting.
 const SORT_INSTRUCTION = [
-  "You are Cooking Buddy, a cooking assistant on smart glasses. Sort what the cook says.",
-  "dish: the dish to cook, only when the cook names one specific dish ('lasagna', 'chicken curry', 'a recipe for banana bread') or picks one that Cooking Buddy suggested earlier ('the second one', 'let's do the falafel'), or agrees to the dish Cooking Buddy just offered ('yes', 'do it', 'let's go', 'sounds good', 'sure, that one', 'perfect'): then dish is that offered dish. If Cooking Buddy offered several and the cook only agrees without saying which, leave dish empty and ask which one. Write it the way the cook or Cooking Buddy wrote it, without adding words, plus any wish they gave for it ('vegetarian lasagna'). Otherwise leave it empty.",
+  characterInstruction("chef"),
+  "",
+  "On the home screen, the cook tells you what they want to cook or asks about food. Sort what the cook says.",
+  "dish: the dish to cook, only when the cook names one specific dish ('lasagna', 'chicken curry', 'a recipe for banana bread') or picks one that you suggested earlier ('the second one', 'let's do the falafel'), or agrees to the dish you just offered ('yes', 'do it', 'let's go', 'sounds good', 'sure, that one', 'perfect'): then dish is that offered dish. If you offered several and the cook only agrees without saying which, leave dish empty and ask which one. Write it the way the cook or you wrote it, without adding words, plus any wish they gave for it ('vegetarian lasagna'). Otherwise leave it empty.",
   "cuisine: when dish is set, the cuisine the dish comes from: indian (butter chicken, dal, biryani), chinese (kung pao chicken, fried rice, dumplings), italian (lasagna, risotto, carbonara), mexican (tacos, enchiladas, mole), french (coq au vin, ratatouille, crêpes), japanese (ramen, katsu curry, teriyaki), thai (pad thai, green curry, tom yum), eastern_european (pierogi, borscht, goulash, cabbage rolls, pelmeni, chicken paprikash, Polish, Russian, Ukrainian, Hungarian, Czech, Romanian, Balkan; Greek is other), american (burgers, BBQ ribs, mac and cheese, fried chicken, cornbread, apple pie, Southern and Tex-Mex classics); anything else, or a dish of no particular cuisine, is other.",
   "servings: when the cook says how many people or servings to cook for, now or earlier in this conversation ('lasagna for 4', 'yes, for six people', 'enough for two', 'just me' = 1), that number; otherwise 0. Leave the number out of dish.",
   "A cuisine, a meal, an ingredient or a kind of dish is not a dish name, even when the cook says 'recipe', 'give me' or 'make me': 'a simple middle eastern recipe', 'an easy dinner recipe', 'chicken recipe', 'something quick with chicken', 'a pasta dish' all leave dish empty. The test: could you search for that exact dish by its name?",
-  "intent: 'recipe' when dish is set; 'chat' for anything else about food, cooking, ingredients or drinks (ideas, what to make with what they have, advice, a cooking question, a follow-up that changes or narrows earlier ideas); 'not_food' for anything that isn't about food, cooking or drinks, even if phrased as a question: sports, news, weather, people, homework, code, jokes, gibberish, or something that isn't safe to eat.",
+  "intent: 'recipe' when dish is set; 'chat' for anything else about food, cooking, ingredients or drinks (ideas, what to make with what they have, advice, a cooking question, a follow-up that changes or narrows earlier ideas), and for a greeting or small talk with you ('hello', 'how are you?', 'who are you?', 'tell me about yourself', 'who else works here?'), answered in character and then asking what they'd like to cook; 'not_food' for anything that isn't about food, cooking or drinks, even if phrased as a question: sports, news, weather, people, homework, code, jokes, gibberish, or something that isn't safe to eat.",
   "Unless intent is 'not_food', always write answer: one to three short sentences, at most 30 words, plain text, no lists or markdown; it is read aloud on smart glasses. For a vague wish, suggest dishes that fit it. suggestions: only the dishes your answer itself suggests (up to 3 short dish names the cook could ask a recipe for, e.g. 'Egg fried rice'); for a question that isn't asking for dishes, an empty list.",
   "A timer ('set a timer for 10 minutes', 'remind me in 5 minutes') is 'chat', not 'not_food': there's no recipe open yet, so answer that timers start once they're cooking, e.g. 'Timers work once a recipe is open. Pick a dish first, then ask for a timer while you cook.', with no suggestions.",
-  "Earlier turns of the conversation, if any, come before what the cook says now: use them for follow-ups ('the second one' means the second dish Cooking Buddy suggested).",
+  "Earlier turns of the conversation, if any, come before what the cook says now: use them for follow-ups ('the second one' means the second dish you suggested).",
 ].join("\n");
 
 /** The request isn't about food ("write me a poem", "asdfgh"); answered with 422, no fallback. */
@@ -48,7 +52,7 @@ export class NotFoodError extends Error {
 }
 
 const SEARCH_INSTRUCTION = [
-  "You are Cooking Buddy, a cooking assistant on smart glasses. The cook names a dish to cook now.",
+  "You write recipes for Yes, Chef, a cooking assistant on smart glasses. The cook names a dish to cook now.",
   "Use Google Search to find a real, well-reviewed recipe for the dish, on a reputable recipe website.",
   "Pick one recipe from one page and follow it: its ingredients, amounts and method. Don't mix recipes or invent steps.",
   "Then rewrite it in the format below: amounts in metric, steps short enough for the glasses, a few substitutes.",
@@ -59,7 +63,7 @@ const SEARCH_INSTRUCTION = [
 ].join("\n");
 
 const WRITE_INSTRUCTION = [
-  "You are Cooking Buddy, a cooking assistant on smart glasses. The cook names a dish to cook now.",
+  "You write recipes for Yes, Chef, a cooking assistant on smart glasses. The cook names a dish to cook now.",
   "Write the classic, widely known home-cooking version of the dish.",
   "Keep it practical: common ingredients, 4-10 steps, nothing fancy unless they ask for it.",
   SERVINGS_RULE,
@@ -158,7 +162,7 @@ const FILLER = new Set(
 );
 
 /**
- * Whether the cook (or Cooking Buddy, earlier) actually named this dish: at least half of its
+ * Whether the cook (or the chef, earlier) actually named this dish: at least half of its
  * words, minus filler, appear in what was said, allowing a typo or a plural. So "the third
  * one" after "(Suggested: Falafel; Hummus; Shakshuka)" gives Shakshuka, but "a simple middle
  * eastern recipe" doesn't.
@@ -276,7 +280,7 @@ function bareDomain(text) {
 
 /** The conversation so far, then what the cook just said. */
 function describe({ request, history = [] }) {
-  const earlier = history.map(({ role, text }) => `${role === "cook" ? "Cook" : "Cooking Buddy"}: ${text}`);
+  const earlier = history.map(({ role, text }) => `${role === "cook" ? "Cook" : "You (Chef)"}: ${text}`);
   return [
     ...(earlier.length ? ["Conversation so far:", ...earlier, ""] : []),
     `The cook says: ${request}`,
