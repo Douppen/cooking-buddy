@@ -71,7 +71,12 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   field: tap, speak, the words fill the field live, then ➤ has focus (`app/src/listen.ts`,
   the browser's Web Speech API; Chrome sends the audio to Google to recognise). It never
   shows on the glasses (detected like the UI Toolkit does: "Greatwhite" or an Android web
-  view), so their flow is unchanged; next to it the field uses a shorter placeholder. Questions are about **the whole recipe**, not one step: the
+  view), so their flow is unchanged; next to it the field uses a shorter placeholder.
+  **On a phone** (any screen under 600 px either way), `app/src/phoneFit.ts` lays the app
+  out 600 px wide and zooms it to fit, over the kitchen photo (as on a laptop). On touch screens (`onTouchScreen()` in
+  `app/src/device.ts`, never the glasses) the laptop demo aids (key help, tips note, solid
+  window switch) aren't added, tapping "Steps ›" / "‹ Ingredients" or a finger swipe
+  switches the cooking views, and tapping the servings box's left or right half changes it. Questions are about **the whole recipe**, not one step: the
   app sends no `step_index` to `/api/ask`.
 - **The answer shows above the ask field** on either view for 15 s and is read aloud.
 - **Timers by voice** ("set a timer for 10 minutes", "time the pasta", "start the timer for

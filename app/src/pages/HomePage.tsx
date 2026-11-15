@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type KeyboardEvent} from 'react';
+import {useEffect, useRef, useState, type KeyboardEvent, type MouseEvent} from 'react';
 import {
   Container,
   createDefaultContainerMaterial,
@@ -15,6 +15,7 @@ import {useNavigate} from 'react-router-dom';
 import {ServerMessageError, askHome, findRecipe, type Turn} from '../api';
 import {useRecipes} from '../RecipesContext';
 import {AskField, SEND_HINT} from '../AskField';
+import {onTouchScreen} from '../device';
 import {prefetchSpeech, queueHandover, speak, stopSpeaking} from '../speech';
 
 type Status =
@@ -93,6 +94,14 @@ export function HomePage() {
     event.preventDefault();
     event.stopPropagation();
     setServings(n => stepServings(n, event.key === 'ArrowRight' ? 'next' : 'prev'));
+  };
+  // The website on a phone: tap the box's left half for one fewer, the right half for one more.
+  const touch = onTouchScreen();
+  const stepServingsOnTap = (event: MouseEvent<HTMLElement>) => {
+    if (!touch) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    const right = event.clientX > box.left + box.width / 2;
+    setServings(n => stepServings(n, right ? 'next' : 'prev'));
   };
   const servingsLabel =
     (servings > MIN_SERVINGS ? '‹ ' : '') +
@@ -246,12 +255,12 @@ export function HomePage() {
                 tabIndex={0}
                 onKeyDown={stepServingsOnSwipe}
               >
-                <div className="servings-box">
+                <div className="servings-box" onClick={stepServingsOnTap}>
                   <TextView as="p" textStyle={TextStyle.BODY2_EMPHASIZED}>
                     {servingsLabel}
                   </TextView>
                   <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
-                    Swipe left or right to change
+                    {touch ? 'Tap ‹ or › to change' : 'Swipe left or right to change'}
                   </TextView>
                 </div>
               </Container>

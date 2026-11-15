@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useReducer, useRef, useState} from 'react';
+import {useEffect, useMemo, useReducer, useRef, useState, type TouchEvent} from 'react';
 import {
   PaginationIndicator,
   PaginationMode,
@@ -94,6 +94,25 @@ export function Cooking({
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
+  // The website on a phone: a finger swipe left shows the steps, right the ingredients (like
+  // any phone carousel). Mostly sideways only, so scrolling a list doesn't flip the view.
+  const swipeStart = useRef<{x: number; y: number} | null>(null);
+  const onTouchStart = (event: TouchEvent) => {
+    const t = event.touches[0];
+    swipeStart.current = t ? {x: t.clientX, y: t.clientY} : null;
+  };
+  const onTouchEnd = (event: TouchEvent) => {
+    const start = swipeStart.current;
+    const t = event.changedTouches[0];
+    swipeStart.current = null;
+    if (!start || !t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    dispatch({type: dx < 0 ? 'next' : 'prev'});
+  };
+  const showView = (index: number) => dispatch({type: 'show', view: VIEWS[index]});
+
   // An answer shows for a while, then goes away.
   useEffect(() => {
     if (state.mode.kind !== 'answer' && state.mode.kind !== 'error') return;
@@ -174,17 +193,17 @@ export function Cooking({
   const cook = cookName(recipe);
 
   return (
-    <div className="cooking-shell">
+    <div className="cooking-shell" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <Pager
         className="cooking-views"
         currentPageIndex={page}
-        onPageChange={index => dispatch({type: 'show', view: VIEWS[index]})}
+        onPageChange={showView}
         aria-label={recipe.title}
       >
         <PagerPage>
           <ScrollView tabIndex={0} ariaLabel={`${recipe.title}: ingredients`}>
             <div className="content-inset">
-              <ViewTabs page={0} />
+              <ViewTabs page={0} onShow={showView} />
               <div className="recipe-heading">
                 <TextView as="h1" textStyle={TextStyle.BODY2_EMPHASIZED}>
                   {recipe.title}
@@ -208,7 +227,7 @@ export function Cooking({
         <PagerPage>
           <ScrollView tabIndex={0} ariaLabel={`${recipe.title}: steps`}>
             <div className="content-inset">
-              <ViewTabs page={1} />
+              <ViewTabs page={1} onShow={showView} />
               <TextView as="p" textStyle={TextStyle.META1} textColor={TextColor.SECONDARY}>
                 {`Steps · ${recipe.steps.length}`}
               </TextView>
@@ -262,25 +281,30 @@ export function Cooking({
 }
 
 // Which view this is, and which way to swipe for the other one: "Ingredients • ○ Steps ›".
-// The first line of each list, so it scrolls away with it. Not focusable.
-function ViewTabs({page}: {page: number}) {
+// The first line of each list, so it scrolls away with it. Not focusable; on the website a tap
+// or click on the other view's name shows it (the glasses never click).
+function ViewTabs({page, onShow}: {page: number; onShow: (index: number) => void}) {
   return (
     <div className="view-tabs" aria-hidden="true">
-      <TextView
-        as="span"
-        textStyle={page === 0 ? TextStyle.META1_EMPHASIZED : TextStyle.META1}
-        textColor={page === 0 ? TextColor.PRIMARY : TextColor.SECONDARY}
-      >
-        {page === 0 ? 'Ingredients' : '‹ Ingredients'}
-      </TextView>
+      <span className="view-tab" onClick={() => onShow(0)}>
+        <TextView
+          as="span"
+          textStyle={page === 0 ? TextStyle.META1_EMPHASIZED : TextStyle.META1}
+          textColor={page === 0 ? TextColor.PRIMARY : TextColor.SECONDARY}
+        >
+          {page === 0 ? 'Ingredients' : '‹ Ingredients'}
+        </TextView>
+      </span>
       <PaginationIndicator mode={PaginationMode.DOTS} pageCount={VIEWS.length} currentPage={page} />
-      <TextView
-        as="span"
-        textStyle={page === 1 ? TextStyle.META1_EMPHASIZED : TextStyle.META1}
-        textColor={page === 1 ? TextColor.PRIMARY : TextColor.SECONDARY}
-      >
-        {page === 1 ? 'Steps' : 'Steps ›'}
-      </TextView>
+      <span className="view-tab" onClick={() => onShow(1)}>
+        <TextView
+          as="span"
+          textStyle={page === 1 ? TextStyle.META1_EMPHASIZED : TextStyle.META1}
+          textColor={page === 1 ? TextColor.PRIMARY : TextColor.SECONDARY}
+        >
+          {page === 1 ? 'Steps' : 'Steps ›'}
+        </TextView>
+      </span>
     </div>
   );
 }

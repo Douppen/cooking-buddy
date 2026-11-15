@@ -5,6 +5,8 @@
 // and a tiny switch, bottom right, that puts the app on a solid black window and hides both. Plain DOM, not UI Toolkit: they aren't part of the glasses app,
 // so a native port leaves them out.
 
+import {onTouchScreen} from './device';
+
 const SOLID_KEY = 'cooking-buddy:dev:solid-window';
 
 function readSolid(): boolean {
@@ -63,11 +65,13 @@ export function showAskHint(on: boolean) {
   root.classList.toggle('demo-cooking', on);
 }
 
-/** Adds the key help, the ask note and the switch to the page. */
+/** Adds the key help, the ask note and the switch to the page (not on touch screens). */
 export function mountDevToolbar() {
   document.querySelector('.dev-toolbar')?.remove();
   document.querySelector('.key-help')?.remove();
   document.querySelector('.ask-hint')?.remove();
+  // Phones and tablets: no keyboard to explain, and the note covered the app. Leave them out.
+  if (onTouchScreen()) return;
 
   const askHint = document.createElement('div');
   askHint.className = 'ask-hint';

@@ -7,6 +7,7 @@ import {
   ReactRouterPageTransition,
 } from '@wearables-ui-toolkit/mrbd/react-router';
 import {mountDevToolbar} from './devToolbar';
+import {fitSmallScreens} from './phoneFit';
 import {RecipesProvider} from './RecipesContext';
 import {CookPage} from './pages/CookPage';
 import {HomePage} from './pages/HomePage';
@@ -41,6 +42,7 @@ const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root mount element');
 
 mountDevToolbar();
+fitSmallScreens();
 
 createRoot(root).render(
   <StrictMode>

@@ -4,6 +4,8 @@
 // does this instead, so canListen() is false there and the mic button never shows. Native:
 // the phone's speech recognition.
 
+import {onGlasses} from './device';
+
 interface Recognition {
   lang: string;
   interimResults: boolean;
@@ -22,12 +24,6 @@ function recognitionCtor(): RecognitionCtor | null {
   if (typeof window === 'undefined') return null;
   const w = window as unknown as {SpeechRecognition?: RecognitionCtor; webkitSpeechRecognition?: RecognitionCtor};
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
-// The glasses' browser, as the UI Toolkit recognises it ("Greatwhite" in an Android web view).
-function onGlasses(): boolean {
-  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-  return ua.includes('Greatwhite') || ua.includes('; wv)');
 }
 
 /** Whether this browser can turn speech into text here (never on the glasses). */

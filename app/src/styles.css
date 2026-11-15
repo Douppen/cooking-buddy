@@ -309,6 +309,29 @@ body {
   }
 }
 
+/* Phones (html.small-screen, set by phoneFit.ts: under 600 px either way, so never the
+   glasses): the same kitchen photo behind the app, which fills the screen as a see-through
+   pane. Same rules as the laptop window above. */
+html.small-screen,
+html.small-screen body {
+  background:
+    linear-gradient(rgb(0 0 0 / 0.4), rgb(0 0 0 / 0.4)),
+    #000 url('/background.webp') center / cover no-repeat;
+}
+
+html.small-screen:not(.solid-window) #root {
+  --uit-color-background-window: transparent;
+  background: transparent;
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+}
+
+html.small-screen:not(.solid-window) #root [class*='fadingEdge'],
+html.small-screen:not(.solid-window) #root [class*='scrim'],
+html.small-screen:not(.solid-window) #root [class*='Vignette'] {
+  display: none;
+}
+
 /* Too small for the photo and the window (the glasses' own 600×600): no toolbar or key help. */
 @media not ((min-width: 760px) and (min-height: 700px)) {
   .dev-toolbar,
@@ -445,6 +468,11 @@ body {
 
 .view-tabs > span:first-child {
   text-align: end;
+}
+
+/* Website only (a tap or click shows that view); the glasses never click. */
+.view-tab {
+  cursor: pointer;
 }
 
 .cooking-views {
