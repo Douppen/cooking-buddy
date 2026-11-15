@@ -57,6 +57,25 @@ export function voiceOf(recipe: {cuisine?: string | null; title: string}): Voice
   return {cuisine: recipe.cuisine ?? null, context: recipe.title};
 }
 
+// The cooks' names by cuisine, the same as `name` in server/ai/personas.js: change both
+// together. A cuisine not listed here ('other', or none) is the British chef.
+const COOKS: Record<string, string> = {
+  indian: 'Pankaj',
+  chinese: 'Uncle Wei',
+  italian: 'Giuseppe',
+  mexican: 'Abuela Rosa',
+  french: 'Chef Jacques',
+  japanese: 'Kenji',
+  thai: 'Auntie Mali',
+  eastern_european: 'Babushka Olga',
+  american: 'Bubba',
+};
+
+/** The name of this recipe's own cook ("Pankaj"), or null when the British chef stays. */
+export function cookName(recipe: {cuisine?: string | null}): string | null {
+  return (recipe.cuisine && COOKS[recipe.cuisine]) || null;
+}
+
 /**
  * Reads `text` aloud. Resolves once the voice starts, so the caller can show the answer at
  * that moment and it doesn't sit on screen waiting for its voice: when the audio starts

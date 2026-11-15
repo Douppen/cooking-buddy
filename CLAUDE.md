@@ -24,12 +24,12 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   the **most recent recipe** as one row ("Back to your recipe"), so a cook who left cooking
   by accident (system Back) pinches it to return. A new dish simply replaces it on top.
   Older recipes stay saved on the device (for a "previous recipes" list later) but aren't shown.
-- **Servings:** a box at the bottom of home, styled like a list row ("‹ 2 servings ›",
+- **Servings:** a box on home under the dish field, styled like a list row ("‹ 2 servings ›",
   "Swipe left or right to change"), 2 by default each time home opens, 1 to 8. Only while
   it has focus, **swipe right** adds one and **swipe left** takes one away. Saying a number
   with the dish ("lasagna for 4", "yes, for six people") sets the box to it before the recipe
   is fetched, so the cook sees it change. The new recipe is scaled to it (see "Servings are the app's job" below). Focus order on home:
-  last recipe, dish field, units switch, voice switch, servings.
+  last recipe, dish field, servings, units switch, voice switch.
 - **Voice on or off:** a "Voice" switch next to "Imperial units" (same row, kept on the
   device, on by default). On: answers are read aloud from `POST /api/speak` (MP3, EU).
   The answer's text waits for its voice (~2 s, "Thinking…" meanwhile) and shows the moment
@@ -39,13 +39,14 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   (named by `/api/home`, saved on the recipe as `cuisine`) brings its own cook for that
   recipe only: every answer, change, error and timer while cooking it is in their voice.
   When a recipe opens from home, the chef hands over first: "Alright, here's your butter
-  chicken recipe. Now let me hand you over to my expert colleague, Pankaj." (made while the
+  chicken recipe. Now let me hand you over to my expert colleague, Pankaj. He knows this dish
+  inside out so just ask away if you have any questions." (made while the
   recipe is found, so it plays the moment the recipe opens; said once, not on reload or
   Back). The cooks: Pankaj (Indian), Uncle Wei (Chinese), Giuseppe (Italian, a chef
   from Naples with a heavy Italian accent), Abuela Rosa (Mexican), Chef Jacques (French),
   Kenji (Japanese), Auntie Mali (Thai), Babushka Olga (all Eastern European food), Bubba
   (American food, an Appalachian hillbilly drawl). Any other cuisine (Greek, say): the chef
-  says "Let's get cooking!" and stays. Names, voices and accents: `server/ai/personas.js`. Off: answers on home and while cooking
+  says "Let's get cooking!" and stays. Names, voices and accents: `server/ai/personas.js`. While cooking, the ask field says "Ask Pankaj" (the recipe's cook; the chef's recipes: "Ask, swap, or set timer"), from a copy of the names in `app/src/speech.ts`. Off: answers on home and while cooking
   are text only (`speak()` in `app/src/speech.ts` does nothing).
 - **Then cook** (`/cook/:id`): two views side by side. It opens on the **ingredients**
   (title, servings, one line per ingredient). **Swipe right** (`next`) shows **all the
@@ -89,7 +90,7 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   clients that want it). "Make it for 6", "double it" or "halve it" changes only the
   recipe's `servings` (1–8, no rewrite, ~1 s), and both lists scale. Both lists show the new recipe; the cook stays on the
   same view.
-- **Metric or imperial** (a small "Imperial units" switch on `/` between the dish field and the servings, label and toggle only, no row box; kept on the device): every recipe
+- **Metric or imperial** (a small "Imperial units" switch on `/` at the bottom, under the servings, label and toggle only, no row box; kept on the device): every recipe
   stays stored in metric; the app shows amounts in oz/lb/tsp/tbsp/cups and converts °C,
   g, ml and cm in step text (`app/src/units.ts`). `/api/ask` gets `unit_system` so answers
   match. Small amounts (salt, spices, leaveners, extracts, and any liquid under 50 ml, e.g. 15 ml oil → 1 tbsp) are stored in `tsp`/`tbsp`, or
@@ -306,7 +307,7 @@ switches over when `/up` is healthy. Run the smoke test locally when you change 
   so sending is a separate ➤ target next to the field (it no longer takes focus by itself). Native (with the
   phone's speech recognition) can make it one record button: pinch to record, pinch to send.
 - Home (`app/src/pages/HomePage.tsx`, 2026-11-14) is built to fit 600×600 with no scrolling:
-  last recipe row, dish field, units switch, servings box. The toolkit's slider `ListItem`
+  last recipe row, dish field, servings box, units switch. The toolkit's slider `ListItem`
   hides its title, so the servings box is a toolkit `Container` that takes left/right
   itself while focused. Native: a focusable row that handles left/right swipes. The units
   and voice switches are toolkit `Switch`es in `Container`s whose surface only shows when

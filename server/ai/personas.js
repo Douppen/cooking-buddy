@@ -5,7 +5,8 @@
 // over to my expert colleague, Pankaj") and, for that recipe only, its cuisine's cook reads
 // every answer, change and timer. A cuisine without a cook of its own keeps the chef.
 //
-// Each persona: name (said in the handover), then its character voice, either
+// Each persona: name and pronoun (said in the handover; the app's ask field shows "Ask Pankaj" from its
+// own copy of the names, COOKS in app/src/speech.ts: change both), then its character voice, either
 //   voice + style (+ languageCode): a Gemini prebuilt voice; the style says how it speaks
 //     (given beside the text, never inside it: the model reads the text word for word), and
 //     languageCode helps the accent stick (Babushka Olga's "ru-RU"), or
@@ -31,6 +32,7 @@ export const PERSONAS = {
   },
   indian: {
     name: "Pankaj",
+    pronoun: "he",
     voice: "Sadaltager",
     style:
       "Pankaj, a warm, enthusiastic home-cooking expert from Delhi, speaking English with a strong, thick Indian accent: Hindi-influenced pronunciation, rhythm and intonation on every word. Friendly and encouraging, like a favourite uncle who loves to feed you.",
@@ -38,6 +40,7 @@ export const PERSONAS = {
   },
   chinese: {
     name: "Uncle Wei",
+    pronoun: "he",
     // Respelled, then read by a Mandarin voice. Plain English in that voice, or Gemini told
     // he's Chinese, sounded American.
     rewrite:
@@ -47,6 +50,7 @@ export const PERSONAS = {
   },
   italian: {
     name: "Giuseppe",
+    pronoun: "he",
     voice: "Orus",
     style:
       "Giuseppe, a passionate chef from Naples who learned to cook in his nonna's kitchen, speaking English with a very heavy, thick Italian accent on every single word: rolled r's, open Italian vowels, an extra 'a' sound at the end of words, the sing-song rhythm and expressive ups and downs of Italian speech. Warm, proud and full of feeling, like he is talking with his hands.",
@@ -54,6 +58,7 @@ export const PERSONAS = {
   },
   mexican: {
     name: "Abuela Rosa",
+    pronoun: "she",
     voice: "Gacrux",
     style:
       "Abuela Rosa, a warm, proud grandmother from Oaxaca, speaking English with a strong, thick Mexican Spanish accent on every word. Affectionate and lively, like she is cooking for her grandchildren.",
@@ -61,6 +66,7 @@ export const PERSONAS = {
   },
   french: {
     name: "Chef Jacques",
+    pronoun: "he",
     // Plain English read by a French voice: the most reliably French (Gemini with fr-FR
     // varied, and sounded "performed" when asked to be dramatic).
     chirp: { voice: "fr-FR-Chirp3-HD-Schedar" },
@@ -68,6 +74,7 @@ export const PERSONAS = {
   },
   japanese: {
     name: "Kenji",
+    pronoun: "he",
     // Katakana English read by a Japanese voice, the cook's pick. Content words in katakana,
     // small everyday words left in English: a little milder and easier to follow than all
     // katakana, with the quick Japanese rhythm (and a touch faster).
@@ -78,12 +85,14 @@ export const PERSONAS = {
   },
   thai: {
     name: "Auntie Mali",
+    pronoun: "she",
     // Plain English read by a Thai voice: clearly Thai and easy to follow.
     chirp: { voice: "th-TH-Chirp3-HD-Laomedeia" },
     fallback: "en-US-Chirp3-HD-Laomedeia",
   },
   eastern_european: {
     name: "Babushka Olga",
+    pronoun: "she",
     voice: "Sulafat",
     languageCode: "ru-RU",
     style:
@@ -93,6 +102,7 @@ export const PERSONAS = {
   },
   american: {
     name: "Bubba",
+    pronoun: "he",
     voice: "Fenrir",
     languageCode: "en-US",
     style:
@@ -140,5 +150,10 @@ export function handoverLine(dish, cuisine) {
   const persona = personaFor(cuisine);
   const opening = `Alright, here's your ${dish} recipe.`;
   if (persona === "chef") return `${opening} Let's get cooking!`;
-  return `${opening} Now let me hand you over to my expert colleague, ${PERSONAS[persona].name}.`;
+  const { name, pronoun } = PERSONAS[persona];
+  const Pronoun = pronoun[0].toUpperCase() + pronoun.slice(1);
+  return (
+    `${opening} Now let me hand you over to my expert colleague, ${name}. ` +
+    `${Pronoun} knows this dish inside out so just ask away if you have any questions.`
+  );
 }

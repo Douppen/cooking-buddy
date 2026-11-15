@@ -365,7 +365,7 @@ body {
   margin: 0;
 }
 
-/* Home: the units and voice switches between the dish field and the servings, one row, each
+/* Home: the units and voice switches at the bottom, under the servings, one row, each
    just a label and a toggle, not a list row. Only the toggle is focusable, so its focus surface stays small. */
 .units-row {
   display: flex;

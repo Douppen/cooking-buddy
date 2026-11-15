@@ -22,7 +22,7 @@ import {
   stepText,
 } from './cookingState';
 import {AskField, SEND_HINT} from './AskField';
-import {playHandover, speak, stopSpeaking, voiceOf} from './speech';
+import {cookName, playHandover, speak, stopSpeaking, voiceOf} from './speech';
 import {TimerDock} from './TimerDock';
 import {CHIME_MS, playChime, unlockChime} from './chime';
 import {TIMER_DONE_VISIBLE_MS, applyTimerCommand, markDone, timerDoneSpeech, type Timer} from './timers';
@@ -170,6 +170,8 @@ export function Cooking({
   const shown = answerText(state.mode);
 
   const page = VIEWS.indexOf(state.view);
+  // The field names the recipe's own cook, if it has one: "Ask Pankaj".
+  const cook = cookName(recipe);
 
   return (
     <div className="cooking-shell">
@@ -249,7 +251,7 @@ export function Cooking({
       <div className="ask-dock">
         <AskField
           text={question}
-          hint="Ask, swap, or set timer"
+          hint={cook ? `Ask ${cook}` : 'Ask, swap, or set timer'}
           onTextChange={setQuestion}
           onSend={send}
           busy={busy}

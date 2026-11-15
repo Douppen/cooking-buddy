@@ -13,6 +13,9 @@ export const SEND_HINT = 'Press Enter or ➤ to send.';
 
 const SEND_LABEL = 'Send';
 
+/** What the field says while the answer or recipe comes. */
+const LOADING_HINT = 'Loading…';
+
 export function AskField({
   text,
   onTextChange,
@@ -48,9 +51,10 @@ export function AskField({
 
   return (
     <div ref={box} onKeyDown={onKeyDown}>
+      {/* While busy, the field holds nothing but "Loading…": not the words just sent, not its hint. */}
       <InputTextView
-        text={text}
-        hint={hint}
+        text={busy ? '' : text}
+        hint={busy ? LOADING_HINT : hint}
         onTextChange={onTextChange}
         onSend={onSend}
         showActionButton
