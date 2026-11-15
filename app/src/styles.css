@@ -340,7 +340,7 @@ body {
 }
 
 /* Home: the name on top, "Yes, Chef for Meta glasses" in one size, the second part grey,
-   underlined as one, as plain text (the toolkit header's chip looked like a dark button). */
+   as plain text (the toolkit header's chip looked like a dark button). */
 .home-shell {
   grid-template-rows: auto minmax(0, 1fr) auto auto;
 }
@@ -349,10 +349,6 @@ body {
   margin: 0;
   padding: var(--uit-spacing-large) var(--uit-spacing-large) 0;
   text-align: center;
-  /* One underline under the whole name, both colors and the space between. */
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 6px;
 }
 
 .ask-dock {
