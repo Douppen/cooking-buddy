@@ -145,11 +145,16 @@ export function personaFor(cuisine, context = "") {
   return "chef";
 }
 
-/** What the chef says when a recipe opens: hands over to its cuisine's cook, if it has one. */
-export function handoverLine(dish, cuisine) {
+/**
+ * What the chef says when a recipe opens: hands over to its cuisine's cook, if it has one.
+ * About half the time it adds "This dish is his specialty.", so the handover doesn't always
+ * sound the same. `random` is there for tests.
+ */
+export function handoverLine(dish, cuisine, random = Math.random) {
   const persona = personaFor(cuisine);
   const opening = `Alright, here's your ${dish} recipe.`;
   if (persona === "chef") return `${opening} Let's get cooking!`;
   const { name, his } = PERSONAS[persona];
-  return `${opening} Now let me hand you over to my expert colleague, ${name}. This dish is ${his} specialty.`;
+  const handover = `${opening} Now let me hand you over to my expert colleague, ${name}.`;
+  return random() < 0.5 ? `${handover} This dish is ${his} specialty.` : handover;
 }

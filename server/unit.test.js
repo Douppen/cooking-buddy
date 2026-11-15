@@ -408,14 +408,24 @@ test("each recipe's cuisine picks its cook; home and other cuisines keep the Bri
   // Older recipes without a cuisine: an Italian title still gets Giuseppe; shared ingredients don't count.
   assert.equal(personaFor(null, "Spaghetti Carbonara"), "italian");
   assert.equal(personaFor(null, "Caesar Salad with parmesan"), "chef");
+  // "This dish is his specialty." comes about half the time (random() < 0.5).
+  const withSpecialty = () => 0;
+  const without = () => 0.9;
   assert.equal(
-    handoverLine("butter chicken", "indian"),
+    handoverLine("butter chicken", "indian", withSpecialty),
     "Alright, here's your butter chicken recipe. Now let me hand you over to my expert colleague, Pankaj. " +
       "This dish is his specialty.",
   );
-  assert.equal(handoverLine("moussaka", "other"), "Alright, here's your moussaka recipe. Let's get cooking!");
-  assert.match(handoverLine("pierogi", "eastern_european"), /colleague, Babushka Olga\. This dish is her specialty\.$/);
-  assert.match(handoverLine("BBQ ribs", "american"), /colleague, Bubba\. This dish is his specialty\.$/);
+  assert.equal(
+    handoverLine("butter chicken", "indian", without),
+    "Alright, here's your butter chicken recipe. Now let me hand you over to my expert colleague, Pankaj.",
+  );
+  assert.equal(handoverLine("moussaka", "other", withSpecialty), "Alright, here's your moussaka recipe. Let's get cooking!");
+  assert.match(
+    handoverLine("pierogi", "eastern_european", withSpecialty),
+    /colleague, Babushka Olga\. This dish is her specialty\.$/,
+  );
+  assert.match(handoverLine("BBQ ribs", "american", without), /colleague, Bubba\.$/);
 });
 
 test("the home box names a dish's cuisine; an unknown one is other", () => {

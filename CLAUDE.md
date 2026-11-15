@@ -40,8 +40,8 @@ Keep the glasses UI simple: plain text lists you scroll, not a phone screen on y
   (named by `/api/home`, saved on the recipe as `cuisine`) brings its own cook for that
   recipe only: every answer, change, error and timer while cooking it is in their voice.
   When a recipe opens from home, the chef hands over first: "Alright, here's your butter
-  chicken recipe. Now let me hand you over to my expert colleague, Pankaj. This dish is his
-  specialty." (made while the
+  chicken recipe. Now let me hand you over to my expert colleague, Pankaj.", about half the
+  time followed by "This dish is his specialty." (made while the
   recipe is found, so it plays the moment the recipe opens; said once, not on reload or
   Back). The cooks: Pankaj (Indian), Uncle Wei (Chinese), Giuseppe (Italian, a chef
   from Naples with a heavy Italian accent), Abuela Rosa (Mexican), Chef Jacques (French),
